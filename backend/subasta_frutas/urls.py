@@ -21,4 +21,5 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('clientes.urls')),
     path('api/', include('usuarios.urls')),
+    path('api/', include('modulo_packing.urls')),  # Rutas del módulo packing
 ]

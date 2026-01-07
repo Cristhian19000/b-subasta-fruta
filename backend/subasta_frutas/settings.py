@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     # Aplicaciones locales del proyecto
     'clientes',                     # Módulo de gestión de clientes
     'usuarios',                     # Módulo de gestión de usuarios
+    'modulo_packing',               # Módulo de packing (proyecciones semanales)
 ]
 
 # =============================================================================

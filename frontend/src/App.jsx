@@ -12,6 +12,7 @@ import { Login } from './pages/auth';
 import { Home } from './pages/home';
 import { Clientes } from './pages/clientes';
 import { Usuarios } from './pages/usuarios';
+import { Packing, Empresas, TiposFruta } from './pages/packing';
 import './index.css';
 
 function App() {
@@ -33,6 +34,21 @@ function App() {
                         
                         {/* Módulo de clientes (todos) */}
                         <Route path="clientes" element={<Clientes />} />
+                        
+                        {/* Módulo de packing (todos) */}
+                        <Route path="packing" element={<Packing />} />
+                        
+                        {/* Catálogos de packing (solo admin) */}
+                        <Route path="empresas" element={
+                            <ProtectedRoute requireAdmin>
+                                <Empresas />
+                            </ProtectedRoute>
+                        } />
+                        <Route path="tipos-fruta" element={
+                            <ProtectedRoute requireAdmin>
+                                <TiposFruta />
+                            </ProtectedRoute>
+                        } />
                         
                         {/* Módulo de usuarios (solo admin) */}
                         <Route path="usuarios" element={
