@@ -1,219 +1,211 @@
 """
-Vistas (Views) para el Módulo de Packing.
-
-Este módulo contiene los ViewSets que manejan todas las operaciones
-CRUD para Empresa, TipoFruta, Packing y PackingDetalle.
+Views para el Módulo de Packing.
 """
 
-from rest_framework import viewsets, status, filters
+from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.db.models import Sum
-from datetime import datetime, timedelta
+from rest_framework.permissions import IsAuthenticated
+from django.db.models import Count
 
-from .models import Empresa, TipoFruta, Packing, PackingDetalle
+from .models import Empresa, TipoFruta, PackingSemanal, PackingTipo, PackingDetalle
 from .serializers import (
     EmpresaSerializer,
     TipoFrutaSerializer,
-    PackingSerializer,
-    PackingListSerializer,
-    PackingCreateSerializer,
-    PackingDetalleSerializer,
+    PackingSemanalListSerializer,
+    PackingSemanalDetailSerializer,
+    PackingSemanalCreateSerializer,
+    PackingTipoSerializer,
 )
 
 
 class EmpresaViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet para gestionar Empresas.
-    
-    Endpoints disponibles:
-        - GET    /api/empresas/          -> Listar empresas
-        - POST   /api/empresas/          -> Crear empresa
-        - GET    /api/empresas/{id}/     -> Obtener empresa
-        - PUT    /api/empresas/{id}/     -> Actualizar empresa
-        - DELETE /api/empresas/{id}/     -> Eliminar empresa
-    """
+    """ViewSet para gestionar Empresas."""
     
     queryset = Empresa.objects.all()
     serializer_class = EmpresaSerializer
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['nombre']
-    ordering_fields = ['nombre', 'fecha_creacion']
-    ordering = ['nombre']
+    permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        """
-        Filtra las empresas, opcionalmente solo las activas.
-        """
-        queryset = Empresa.objects.all()
+        """Filtrar empresas activas si se solicita."""
+        queryset = super().get_queryset()
         activo = self.request.query_params.get('activo', None)
+        
         if activo is not None:
-            queryset = queryset.filter(activo=activo.lower() == 'true')
-        return queryset
+            activo = activo.lower() == 'true'
+            queryset = queryset.filter(activo=activo)
+        
+        return queryset.order_by('nombre')
 
 
 class TipoFrutaViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet para gestionar Tipos de Fruta.
-    
-    Endpoints disponibles:
-        - GET    /api/tipos-fruta/          -> Listar tipos
-        - POST   /api/tipos-fruta/          -> Crear tipo
-        - GET    /api/tipos-fruta/{id}/     -> Obtener tipo
-        - PUT    /api/tipos-fruta/{id}/     -> Actualizar tipo
-        - DELETE /api/tipos-fruta/{id}/     -> Eliminar tipo
-    """
+    """ViewSet para gestionar Tipos de Fruta."""
     
     queryset = TipoFruta.objects.all()
     serializer_class = TipoFrutaSerializer
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['nombre']
-    ordering_fields = ['nombre', 'fecha_creacion']
-    ordering = ['nombre']
+    permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        """
-        Filtra los tipos de fruta, opcionalmente solo los activos.
-        """
-        queryset = TipoFruta.objects.all()
+        """Filtrar tipos activos si se solicita."""
+        queryset = super().get_queryset()
         activo = self.request.query_params.get('activo', None)
-        if activo is not None:
-            queryset = queryset.filter(activo=activo.lower() == 'true')
-        return queryset
-
-
-class PackingViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet para gestionar Packings (proyecciones semanales).
-    
-    Endpoints disponibles:
-        - GET    /api/packings/              -> Listar packings
-        - POST   /api/packings/              -> Crear packing
-        - GET    /api/packings/{id}/         -> Obtener packing con detalles
-        - PUT    /api/packings/{id}/         -> Actualizar packing
-        - DELETE /api/packings/{id}/         -> Eliminar packing
         
-    Acciones personalizadas:
-        - GET /api/packings/por_semana/      -> Filtrar por semana
-        - GET /api/packings/resumen/         -> Resumen de kg por empresa
+        if activo is not None:
+            activo = activo.lower() == 'true'
+            queryset = queryset.filter(activo=activo)
+        
+        return queryset.order_by('nombre')
+
+
+class PackingSemanalViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet para gestionar Packings Semanales.
+    
+    Soporta:
+    - Listado con filtros (por empresa, estado, fechas)
+    - Detalle con tipos y detalles anidados
+    - Crear/Actualizar packing completo en una sola operación
     """
     
-    queryset = Packing.objects.all()
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['empresa__nombre', 'tipo_fruta__nombre']
-    ordering_fields = ['fecha_proyeccion', 'kg_total', 'fecha_creacion']
-    ordering = ['-fecha_proyeccion']
-    
-    def get_serializer_class(self):
-        """
-        Selecciona el serializer apropiado según la acción.
-        """
-        if self.action == 'list':
-            return PackingListSerializer
-        elif self.action in ['create', 'update', 'partial_update']:
-            return PackingCreateSerializer
-        return PackingSerializer
+    permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        """
-        Filtra los packings por empresa, tipo de fruta o fecha.
-        """
-        queryset = Packing.objects.all()
+        """Obtener queryset con anotaciones y filtros."""
+        queryset = PackingSemanal.objects.select_related('empresa').annotate(
+            num_tipos=Count('tipos')
+        )
         
         # Filtro por empresa
         empresa_id = self.request.query_params.get('empresa', None)
         if empresa_id:
             queryset = queryset.filter(empresa_id=empresa_id)
         
-        # Filtro por tipo de fruta
-        tipo_fruta_id = self.request.query_params.get('tipo_fruta', None)
-        if tipo_fruta_id:
-            queryset = queryset.filter(tipo_fruta_id=tipo_fruta_id)
+        # Filtro por estado
+        estado = self.request.query_params.get('estado', None)
+        if estado:
+            queryset = queryset.filter(estado=estado)
         
-        # Filtro por fecha de proyección
-        fecha = self.request.query_params.get('fecha_proyeccion', None)
-        if fecha:
-            queryset = queryset.filter(fecha_proyeccion=fecha)
+        # Filtro por rango de fechas
+        fecha_desde = self.request.query_params.get('fecha_desde', None)
+        fecha_hasta = self.request.query_params.get('fecha_hasta', None)
         
-        return queryset
+        if fecha_desde:
+            queryset = queryset.filter(fecha_inicio_semana__gte=fecha_desde)
+        if fecha_hasta:
+            queryset = queryset.filter(fecha_inicio_semana__lte=fecha_hasta)
+        
+        return queryset.order_by('-fecha_inicio_semana', 'empresa__nombre')
     
-    @action(detail=False, methods=['get'])
-    def por_semana(self, request):
-        """
-        Obtiene los packings de una semana específica.
+    def get_serializer_class(self):
+        """Usar diferentes serializers según la acción."""
+        if self.action == 'list':
+            return PackingSemanalListSerializer
+        elif self.action in ['create', 'update', 'partial_update']:
+            return PackingSemanalCreateSerializer
+        return PackingSemanalDetailSerializer
+    
+    def create(self, request, *args, **kwargs):
+        """Crear un packing semanal completo."""
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        instance = serializer.save()
         
-        Parámetros:
-            - fecha: Fecha de la semana (YYYY-MM-DD)
-        """
-        fecha_str = request.query_params.get('fecha', None)
+        # Devolver los datos completos del packing creado
+        output_serializer = PackingSemanalDetailSerializer(instance)
+        return Response(output_serializer.data, status=status.HTTP_201_CREATED)
+    
+    def update(self, request, *args, **kwargs):
+        """Actualizar un packing semanal completo."""
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        instance = serializer.save()
         
-        if not fecha_str:
+        # Devolver los datos completos del packing actualizado
+        output_serializer = PackingSemanalDetailSerializer(instance)
+        return Response(output_serializer.data)
+    
+    @action(detail=True, methods=['post'])
+    def cambiar_estado(self, request, pk=None):
+        """
+        Cambiar el estado de un packing semanal.
+        
+        Body: { "estado": "ACTIVO" | "CERRADO" | "ANULADO" | "PROYECTADO" }
+        """
+        packing = self.get_object()
+        nuevo_estado = request.data.get('estado')
+        
+        if not nuevo_estado:
             return Response(
-                {'error': 'Se requiere el parámetro fecha'},
+                {'error': 'Debe proporcionar el nuevo estado'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        try:
-            fecha = datetime.strptime(fecha_str, '%Y-%m-%d').date()
-        except ValueError:
+        estados_validos = [choice[0] for choice in PackingSemanal.ESTADO_CHOICES]
+        if nuevo_estado not in estados_validos:
             return Response(
-                {'error': 'Formato de fecha inválido. Use YYYY-MM-DD'},
+                {'error': f'Estado inválido. Debe ser uno de: {estados_validos}'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Obtener el lunes de la semana
-        lunes = fecha - timedelta(days=fecha.weekday())
+        packing.estado = nuevo_estado
+        packing.save()
         
-        packings = Packing.objects.filter(fecha_proyeccion=lunes)
-        serializer = PackingSerializer(packings, many=True)
-        
-        return Response({
-            'semana_inicio': lunes,
-            'packings': serializer.data
-        })
+        serializer = PackingSemanalDetailSerializer(packing)
+        return Response(serializer.data)
     
     @action(detail=False, methods=['get'])
     def resumen(self, request):
         """
-        Obtiene un resumen de kg totales por empresa y tipo de fruta.
+        Obtener resumen de packings por estado.
+        
+        Devuelve conteo de packings por cada estado.
         """
-        resumen = Packing.objects.values(
-            'empresa__nombre',
-            'tipo_fruta__nombre'
-        ).annotate(
-            kg_total=Sum('kg_total')
-        ).order_by('empresa__nombre', 'tipo_fruta__nombre')
+        from django.db.models import Sum
+        
+        queryset = PackingSemanal.objects.all()
+        
+        # Filtrar por empresa si se especifica
+        empresa_id = request.query_params.get('empresa', None)
+        if empresa_id:
+            queryset = queryset.filter(empresa_id=empresa_id)
+        
+        resumen = []
+        for estado_code, estado_label in PackingSemanal.ESTADO_CHOICES:
+            qs = queryset.filter(estado=estado_code)
+            resumen.append({
+                'estado': estado_code,
+                'estado_display': estado_label,
+                'cantidad': qs.count(),
+                'kg_total': qs.aggregate(total=Sum('kg_total'))['total'] or 0
+            })
         
         return Response(resumen)
 
 
-class PackingDetalleViewSet(viewsets.ModelViewSet):
+class PackingTipoViewSet(viewsets.ReadOnlyModelViewSet):
     """
-    ViewSet para gestionar Detalles de Packing.
+    ViewSet de solo lectura para tipos de fruta en packings.
     
-    Endpoints disponibles:
-        - GET    /api/packing-detalles/          -> Listar detalles
-        - POST   /api/packing-detalles/          -> Crear detalle
-        - GET    /api/packing-detalles/{id}/     -> Obtener detalle
-        - PUT    /api/packing-detalles/{id}/     -> Actualizar detalle
-        - DELETE /api/packing-detalles/{id}/     -> Eliminar detalle
+    Útil para consultas específicas de tipos de fruta.
     """
     
-    queryset = PackingDetalle.objects.all()
-    serializer_class = PackingDetalleSerializer
-    filter_backends = [filters.OrderingFilter]
-    ordering_fields = ['fecha', 'dia', 'kg']
-    ordering = ['fecha']
+    queryset = PackingTipo.objects.select_related('packing_semanal', 'tipo_fruta').all()
+    serializer_class = PackingTipoSerializer
+    permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        """
-        Filtra los detalles por packing.
-        """
-        queryset = PackingDetalle.objects.all()
+        """Filtrar por packing si se especifica."""
+        queryset = super().get_queryset()
         
         packing_id = self.request.query_params.get('packing', None)
         if packing_id:
-            queryset = queryset.filter(packing_id=packing_id)
+            queryset = queryset.filter(packing_semanal_id=packing_id)
         
-        return queryset
+        tipo_fruta_id = self.request.query_params.get('tipo_fruta', None)
+        if tipo_fruta_id:
+            queryset = queryset.filter(tipo_fruta_id=tipo_fruta_id)
+        
+        return queryset.order_by('tipo_fruta__nombre')
 

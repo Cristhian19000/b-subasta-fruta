@@ -1,24 +1,25 @@
 """
 Modelos para el Módulo de Packing.
 
-Este módulo gestiona la proyección semanal de empaque de frutas
-por empresa y tipo de fruta.
+Estructura profesional:
+1. Empresa - Manejan múltiples empresas
+2. TipoFruta - Tipos de arándano/destino (Campo, Campo congelado, Descarte proceso)
+3. PackingSemanal - Cabecera: UN packing de UNA empresa en UNA semana
+4. PackingTipo - Cada tipo dentro del packing semanal
+5. PackingDetalle - Los PY por día (Lunes a Sábado)
 """
 
 from django.db import models
 from django.db.models import Sum
 
 
+# =============================================================================
+# 1. TABLA: EMPRESA
+# =============================================================================
 class Empresa(models.Model):
     """
-    Modelo para almacenar las empresas.
-    
-    Se manejan múltiples empresas en el sistema.
-    
-    Atributos:
-        nombre: Nombre de la empresa
-        activo: Indica si la empresa está activa
-        fecha_creacion: Fecha de creación del registro
+    Empresas del sistema.
+    Se manejan múltiples empresas.
     """
     
     nombre = models.CharField(
@@ -43,20 +44,22 @@ class Empresa(models.Model):
         return self.nombre
 
 
+# =============================================================================
+# 2. TABLA: TIPO_FRUTA
+# =============================================================================
 class TipoFruta(models.Model):
     """
-    Modelo para almacenar los tipos de fruta.
+    Tipos de arándano / destino del arándano.
     
-    Catálogo de frutas disponibles para packing.
-    
-    Atributos:
-        nombre: Nombre del tipo de fruta (ej: Mango, Uva, Palta)
-        activo: Indica si el tipo está activo
+    Ejemplos:
+    - Campo
+    - Campo congelado
+    - Descarte proceso
     """
     
     nombre = models.CharField(
         max_length=100,
-        verbose_name="Nombre del tipo de fruta"
+        verbose_name="Nombre del tipo"
     )
     activo = models.BooleanField(
         default=True,
@@ -76,50 +79,54 @@ class TipoFruta(models.Model):
         return self.nombre
 
 
-class Packing(models.Model):
+# =============================================================================
+# 3. TABLA: PACKING_SEMANAL
+# =============================================================================
+class PackingSemanal(models.Model):
     """
-    Modelo para la proyección semanal de packing.
-    
-    Representa la cabecera de una proyección de empaque
-    para una empresa y tipo de fruta específicos.
-    
-    Atributos:
-        empresa: Referencia a la empresa
-        tipo_fruta: Referencia al tipo de fruta
-        fecha_proyeccion: Fecha de inicio de la semana (generalmente lunes)
-        kg_total: Kilogramos totales (calculado automáticamente)
-        observaciones: Notas adicionales
+    Cabecera del formulario.
+    Representa UN packing de UNA empresa en UNA semana.
     """
+    
+    ESTADO_CHOICES = [
+        ('PROYECTADO', 'Proyectado'),
+        ('ACTIVO', 'Activo'),
+        ('CERRADO', 'Cerrado'),
+        ('ANULADO', 'Anulado'),
+    ]
     
     empresa = models.ForeignKey(
         Empresa,
         on_delete=models.CASCADE,
-        related_name='packings',
+        related_name='packings_semanales',
         verbose_name="Empresa"
     )
-    tipo_fruta = models.ForeignKey(
-        TipoFruta,
-        on_delete=models.CASCADE,
-        related_name='packings',
-        verbose_name="Tipo de Fruta"
+    fecha_inicio_semana = models.DateField(
+        verbose_name="Fecha inicio de semana (Lunes)"
     )
-    fecha_proyeccion = models.DateField(
-        verbose_name="Fecha de proyección (inicio de semana)"
+    fecha_fin_semana = models.DateField(
+        verbose_name="Fecha fin de semana (Domingo)"
     )
     kg_total = models.DecimalField(
         max_digits=12,
         decimal_places=2,
         default=0,
-        verbose_name="KG Total"
+        verbose_name="KG Total (calculado)"
+    )
+    estado = models.CharField(
+        max_length=20,
+        choices=ESTADO_CHOICES,
+        default='PROYECTADO',
+        verbose_name="Estado"
     )
     observaciones = models.TextField(
         blank=True,
         null=True,
         verbose_name="Observaciones"
     )
-    fecha_creacion = models.DateTimeField(
+    fecha_registro = models.DateTimeField(
         auto_now_add=True,
-        verbose_name="Fecha de creación"
+        verbose_name="Fecha de registro"
     )
     fecha_actualizacion = models.DateTimeField(
         auto_now=True,
@@ -127,60 +134,114 @@ class Packing(models.Model):
     )
     
     class Meta:
-        verbose_name = "Packing"
-        verbose_name_plural = "Packings"
-        ordering = ['-fecha_proyeccion']
-        # Evitar duplicados: una empresa solo tiene un packing por tipo de fruta y semana
-        unique_together = ['empresa', 'tipo_fruta', 'fecha_proyeccion']
+        verbose_name = "Packing Semanal"
+        verbose_name_plural = "Packings Semanales"
+        ordering = ['-fecha_inicio_semana', 'empresa__nombre']
+        # Una empresa solo tiene un packing por semana
+        unique_together = ['empresa', 'fecha_inicio_semana']
     
     def __str__(self):
-        return f"{self.empresa.nombre} - {self.tipo_fruta.nombre} - {self.fecha_proyeccion}"
+        return f"{self.empresa.nombre} - Semana {self.fecha_inicio_semana}"
     
     def calcular_kg_total(self):
-        """
-        Calcula el total de kilogramos sumando todos los detalles.
-        """
-        total = self.detalles.aggregate(total=Sum('kg'))['total']
+        """Calcula el total de kg sumando todos los tipos."""
+        total = self.tipos.aggregate(total=Sum('kg_total'))['total']
         return total or 0
     
     def actualizar_kg_total(self):
-        """
-        Actualiza el campo kg_total con el valor calculado.
-        """
+        """Actualiza el campo kg_total con el valor calculado."""
         self.kg_total = self.calcular_kg_total()
         self.save(update_fields=['kg_total'])
 
 
-class PackingDetalle(models.Model):
+# =============================================================================
+# 4. TABLA: PACKING_TIPO
+# =============================================================================
+class PackingTipo(models.Model):
     """
-    Modelo para el detalle diario del packing (la tablita de los PY).
-    
-    Representa la proyección de un día específico dentro de la semana.
-    
-    Atributos:
-        packing: Referencia al packing (cabecera)
-        dia: Nombre del día (lunes, martes, etc.)
-        fecha: Fecha específica del día
-        py: Código o identificador PY
-        kg: Kilogramos proyectados para ese día
+    Cada tipo dentro del packing semanal.
+    Ej: Campo, Campo congelado, Descarte proceso
     """
     
-    # Opciones para los días de la semana
-    DIA_CHOICES = [
-        ('lunes', 'Lunes'),
-        ('martes', 'Martes'),
-        ('miercoles', 'Miércoles'),
-        ('jueves', 'Jueves'),
-        ('viernes', 'Viernes'),
-        ('sabado', 'Sábado'),
-        ('domingo', 'Domingo'),
+    ESTADO_CHOICES = [
+        ('ACTIVO', 'Activo'),
+        ('INACTIVO', 'Inactivo'),
     ]
     
-    packing = models.ForeignKey(
-        Packing,
+    packing_semanal = models.ForeignKey(
+        PackingSemanal,
+        on_delete=models.CASCADE,
+        related_name='tipos',
+        verbose_name="Packing Semanal"
+    )
+    tipo_fruta = models.ForeignKey(
+        TipoFruta,
+        on_delete=models.CASCADE,
+        related_name='packing_tipos',
+        verbose_name="Tipo de Fruta"
+    )
+    kg_total = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        verbose_name="KG Total"
+    )
+    estado = models.CharField(
+        max_length=20,
+        choices=ESTADO_CHOICES,
+        default='ACTIVO',
+        verbose_name="Estado"
+    )
+    fecha_creacion = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="Fecha de creación"
+    )
+    
+    class Meta:
+        verbose_name = "Packing por Tipo de Fruta"
+        verbose_name_plural = "Packings por Tipo de Fruta"
+        ordering = ['tipo_fruta__nombre']
+        unique_together = ['packing_semanal', 'tipo_fruta']
+    
+    def __str__(self):
+        return f"{self.packing_semanal} - {self.tipo_fruta.nombre}"
+    
+    def calcular_kg_total(self):
+        """Calcula el total de kg sumando todos los detalles diarios."""
+        total = self.detalles.aggregate(total=Sum('kg'))['total']
+        return total or 0
+    
+    def actualizar_kg_total(self):
+        """Actualiza el campo kg_total y también el del padre."""
+        self.kg_total = self.calcular_kg_total()
+        self.save(update_fields=['kg_total'])
+        # También actualizar el padre
+        self.packing_semanal.actualizar_kg_total()
+
+
+# =============================================================================
+# 5. TABLA: PACKING_DETALLE
+# =============================================================================
+class PackingDetalle(models.Model):
+    """
+    La tablita de los PY por día.
+    Contiene los valores de PY y KG para cada día de la semana.
+    """
+    
+    DIA_CHOICES = [
+        ('LUNES', 'Lunes'),
+        ('MARTES', 'Martes'),
+        ('MIERCOLES', 'Miércoles'),
+        ('JUEVES', 'Jueves'),
+        ('VIERNES', 'Viernes'),
+        ('SABADO', 'Sábado'),
+    ]
+    
+    packing_tipo = models.ForeignKey(
+        PackingTipo,
         on_delete=models.CASCADE,
         related_name='detalles',
-        verbose_name="Packing"
+        verbose_name="Packing Tipo"
     )
     dia = models.CharField(
         max_length=10,
@@ -192,6 +253,8 @@ class PackingDetalle(models.Model):
     )
     py = models.CharField(
         max_length=50,
+        blank=True,
+        default='',
         verbose_name="PY"
     )
     kg = models.DecimalField(
@@ -209,24 +272,19 @@ class PackingDetalle(models.Model):
         verbose_name = "Detalle de Packing"
         verbose_name_plural = "Detalles de Packing"
         ordering = ['fecha']
+        unique_together = ['packing_tipo', 'dia']
     
     def __str__(self):
-        return f"{self.packing} - {self.dia} ({self.py})"
+        return f"{self.packing_tipo.tipo_fruta.nombre} - {self.dia}"
     
     def save(self, *args, **kwargs):
-        """
-        Sobrescribe el método save para actualizar el kg_total del packing padre.
-        """
+        """Sobrescribe save para actualizar totales."""
         super().save(*args, **kwargs)
-        # Actualizar el total del packing padre
-        self.packing.actualizar_kg_total()
+        self.packing_tipo.actualizar_kg_total()
     
     def delete(self, *args, **kwargs):
-        """
-        Sobrescribe el método delete para actualizar el kg_total del packing padre.
-        """
-        packing = self.packing
+        """Sobrescribe delete para actualizar totales."""
+        packing_tipo = self.packing_tipo
         super().delete(*args, **kwargs)
-        # Actualizar el total del packing padre después de eliminar
-        packing.actualizar_kg_total()
+        packing_tipo.actualizar_kg_total()
 

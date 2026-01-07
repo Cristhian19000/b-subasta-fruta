@@ -1,20 +1,22 @@
 """
 Serializers para el Módulo de Packing.
 
-Este módulo contiene los serializers que convierten los modelos
-a formato JSON y viceversa para la API REST.
+Estructura jerárquica:
+- PackingSemanal (cabecera principal)
+  - PackingTipo (por tipo de fruta)
+    - PackingDetalle (por día)
 """
 
 from rest_framework import serializers
-from .models import Empresa, TipoFruta, Packing, PackingDetalle
+from .models import Empresa, TipoFruta, PackingSemanal, PackingTipo, PackingDetalle
 
+
+# =============================================================================
+# SERIALIZERS BÁSICOS
+# =============================================================================
 
 class EmpresaSerializer(serializers.ModelSerializer):
-    """
-    Serializer para el modelo Empresa.
-    
-    Permite crear, listar y actualizar empresas.
-    """
+    """Serializer para el modelo Empresa."""
     
     class Meta:
         model = Empresa
@@ -23,11 +25,7 @@ class EmpresaSerializer(serializers.ModelSerializer):
 
 
 class TipoFrutaSerializer(serializers.ModelSerializer):
-    """
-    Serializer para el modelo TipoFruta.
-    
-    Permite crear, listar y actualizar tipos de fruta.
-    """
+    """Serializer para el modelo TipoFruta."""
     
     class Meta:
         model = TipoFruta
@@ -35,150 +33,210 @@ class TipoFrutaSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'fecha_creacion']
 
 
+# =============================================================================
+# SERIALIZERS DE DETALLE (para lectura)
+# =============================================================================
+
 class PackingDetalleSerializer(serializers.ModelSerializer):
-    """
-    Serializer para el modelo PackingDetalle.
-    
-    Representa un día específico dentro de la proyección semanal.
-    """
+    """Serializer para el detalle diario."""
     
     dia_display = serializers.CharField(source='get_dia_display', read_only=True)
     
     class Meta:
         model = PackingDetalle
-        fields = [
-            'id',
-            'packing',
-            'dia',
-            'dia_display',
-            'fecha',
-            'py',
-            'kg',
-            'fecha_creacion',
-        ]
-        read_only_fields = ['id', 'fecha_creacion']
-
-
-class PackingDetalleCreateSerializer(serializers.ModelSerializer):
-    """
-    Serializer simplificado para crear detalles de packing.
-    
-    No requiere el campo packing ya que se asigna automáticamente.
-    """
-    
-    class Meta:
-        model = PackingDetalle
-        fields = ['id', 'dia', 'fecha', 'py', 'kg']
+        fields = ['id', 'dia', 'dia_display', 'fecha', 'py', 'kg']
         read_only_fields = ['id']
 
 
-class PackingSerializer(serializers.ModelSerializer):
-    """
-    Serializer para el modelo Packing (cabecera).
+class PackingTipoSerializer(serializers.ModelSerializer):
+    """Serializer para el tipo de fruta dentro de un packing."""
     
-    Incluye información de la empresa y tipo de fruta.
-    """
-    
-    empresa_nombre = serializers.CharField(source='empresa.nombre', read_only=True)
     tipo_fruta_nombre = serializers.CharField(source='tipo_fruta.nombre', read_only=True)
     detalles = PackingDetalleSerializer(many=True, read_only=True)
+    estado_display = serializers.CharField(source='get_estado_display', read_only=True)
     
     class Meta:
-        model = Packing
-        fields = [
-            'id',
-            'empresa',
-            'empresa_nombre',
-            'tipo_fruta',
-            'tipo_fruta_nombre',
-            'fecha_proyeccion',
-            'kg_total',
-            'observaciones',
-            'detalles',
-            'fecha_creacion',
-            'fecha_actualizacion',
-        ]
-        read_only_fields = ['id', 'kg_total', 'fecha_creacion', 'fecha_actualizacion']
+        model = PackingTipo
+        fields = ['id', 'tipo_fruta', 'tipo_fruta_nombre', 'kg_total', 'estado', 'estado_display', 'detalles']
+        read_only_fields = ['id', 'kg_total']
 
 
-class PackingListSerializer(serializers.ModelSerializer):
-    """
-    Serializer simplificado para listar packings.
-    
-    No incluye los detalles para mejorar el rendimiento.
-    """
+# =============================================================================
+# SERIALIZERS PARA LISTADO
+# =============================================================================
+
+class PackingSemanalListSerializer(serializers.ModelSerializer):
+    """Serializer para listar packings semanales (vista resumida)."""
     
     empresa_nombre = serializers.CharField(source='empresa.nombre', read_only=True)
-    tipo_fruta_nombre = serializers.CharField(source='tipo_fruta.nombre', read_only=True)
-    cantidad_detalles = serializers.SerializerMethodField()
+    cantidad_tipos = serializers.IntegerField(source='num_tipos', read_only=True)
+    estado_display = serializers.CharField(source='get_estado_display', read_only=True)
     
     class Meta:
-        model = Packing
+        model = PackingSemanal
+        fields = [
+            'id', 
+            'empresa', 
+            'empresa_nombre', 
+            'fecha_inicio_semana',
+            'fecha_fin_semana',
+            'total_kg', 
+            'cantidad_tipos',
+            'estado',
+            'estado_display',
+            'fecha_registro',
+        ]
+        read_only_fields = ['id', 'total_kg', 'cantidad_tipos', 'fecha_registro']
+    
+    # Mapear kg_total a total_kg para el frontend
+    total_kg = serializers.DecimalField(source='kg_total', max_digits=12, decimal_places=2, read_only=True)
+
+
+# =============================================================================
+# SERIALIZERS PARA DETALLE
+# =============================================================================
+
+class PackingSemanalDetailSerializer(serializers.ModelSerializer):
+    """Serializer para ver un packing semanal con todos sus detalles."""
+    
+    empresa_nombre = serializers.CharField(source='empresa.nombre', read_only=True)
+    tipos = PackingTipoSerializer(many=True, read_only=True)
+    estado_display = serializers.CharField(source='get_estado_display', read_only=True)
+    total_kg = serializers.DecimalField(source='kg_total', max_digits=12, decimal_places=2, read_only=True)
+    
+    class Meta:
+        model = PackingSemanal
         fields = [
             'id',
             'empresa',
             'empresa_nombre',
-            'tipo_fruta',
-            'tipo_fruta_nombre',
-            'fecha_proyeccion',
-            'kg_total',
-            'cantidad_detalles',
-            'fecha_creacion',
-        ]
-    
-    def get_cantidad_detalles(self, obj):
-        """Retorna la cantidad de detalles del packing."""
-        return obj.detalles.count()
-
-
-class PackingCreateSerializer(serializers.ModelSerializer):
-    """
-    Serializer para crear un packing con sus detalles.
-    
-    Permite crear la cabecera y los detalles en una sola petición.
-    """
-    
-    detalles = PackingDetalleCreateSerializer(many=True, required=False)
-    
-    class Meta:
-        model = Packing
-        fields = [
-            'id',
-            'empresa',
-            'tipo_fruta',
-            'fecha_proyeccion',
+            'fecha_inicio_semana',
+            'fecha_fin_semana',
+            'total_kg',
+            'estado',
+            'estado_display',
             'observaciones',
-            'detalles',
+            'tipos',
+            'fecha_registro',
+            'fecha_actualizacion',
         ]
-        read_only_fields = ['id']
+        read_only_fields = ['id', 'total_kg', 'fecha_registro', 'fecha_actualizacion']
+
+
+# =============================================================================
+# SERIALIZERS PARA CREAR/ACTUALIZAR
+# =============================================================================
+
+class PackingDetalleCreateSerializer(serializers.Serializer):
+    """Serializer para crear detalles diarios."""
+    dia = serializers.ChoiceField(choices=PackingDetalle.DIA_CHOICES)
+    fecha = serializers.DateField()
+    py = serializers.CharField(max_length=50, required=False, allow_blank=True, default='')
+    kg = serializers.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+
+class PackingTipoCreateSerializer(serializers.Serializer):
+    """Serializer para crear tipos de fruta con sus detalles."""
+    tipo_fruta = serializers.PrimaryKeyRelatedField(queryset=TipoFruta.objects.all())
+    detalles = PackingDetalleCreateSerializer(many=True)
+
+
+class PackingSemanalCreateSerializer(serializers.Serializer):
+    """
+    Serializer para crear un packing semanal completo.
+    
+    Recibe: empresa, fecha_inicio_semana, fecha_fin_semana, observaciones (opcional),
+    estado (opcional) y un array de tipos con sus detalles diarios.
+    """
+    empresa = serializers.PrimaryKeyRelatedField(queryset=Empresa.objects.all())
+    fecha_inicio_semana = serializers.DateField()
+    fecha_fin_semana = serializers.DateField()
+    observaciones = serializers.CharField(required=False, allow_blank=True, default='')
+    estado = serializers.ChoiceField(choices=PackingSemanal.ESTADO_CHOICES, default='PROYECTADO')
+    tipos = PackingTipoCreateSerializer(many=True)
+    
+    def validate(self, data):
+        """Validar fechas y unicidad."""
+        fecha_inicio = data['fecha_inicio_semana']
+        fecha_fin = data['fecha_fin_semana']
+        empresa = data['empresa']
+        
+        # Validar que fecha_fin sea mayor que fecha_inicio
+        if fecha_fin <= fecha_inicio:
+            raise serializers.ValidationError({
+                'fecha_fin_semana': 'La fecha de fin debe ser posterior a la fecha de inicio'
+            })
+        
+        # Validar unicidad (empresa + fecha_inicio)
+        instance = getattr(self, 'instance', None)
+        queryset = PackingSemanal.objects.filter(empresa=empresa, fecha_inicio_semana=fecha_inicio)
+        
+        if instance:
+            queryset = queryset.exclude(pk=instance.pk)
+        
+        if queryset.exists():
+            raise serializers.ValidationError({
+                'fecha_inicio_semana': f'Ya existe un packing para {empresa.nombre} en la semana del {fecha_inicio}'
+            })
+        
+        return data
     
     def create(self, validated_data):
-        """
-        Crea el packing y sus detalles en una transacción.
-        """
-        detalles_data = validated_data.pop('detalles', [])
-        packing = Packing.objects.create(**validated_data)
+        """Crear el packing semanal con todos sus tipos y detalles."""
+        tipos_data = validated_data.pop('tipos')
         
-        for detalle_data in detalles_data:
-            PackingDetalle.objects.create(packing=packing, **detalle_data)
+        # Crear el packing semanal
+        packing_semanal = PackingSemanal.objects.create(**validated_data)
         
-        return packing
+        # Crear cada tipo de fruta con sus detalles
+        for tipo_data in tipos_data:
+            detalles_data = tipo_data.pop('detalles')
+            packing_tipo = PackingTipo.objects.create(
+                packing_semanal=packing_semanal,
+                tipo_fruta=tipo_data['tipo_fruta']
+            )
+            
+            # Crear los detalles diarios
+            for detalle_data in detalles_data:
+                PackingDetalle.objects.create(
+                    packing_tipo=packing_tipo,
+                    **detalle_data
+                )
+            
+            # Actualizar total del tipo
+            packing_tipo.actualizar_kg_total()
+        
+        return packing_semanal
     
     def update(self, instance, validated_data):
-        """
-        Actualiza el packing y opcionalmente reemplaza los detalles.
-        """
-        detalles_data = validated_data.pop('detalles', None)
+        """Actualizar el packing semanal reemplazando tipos y detalles."""
+        tipos_data = validated_data.pop('tipos')
         
-        # Actualizar campos del packing
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
+        # Actualizar campos de cabecera
+        instance.empresa = validated_data.get('empresa', instance.empresa)
+        instance.fecha_inicio_semana = validated_data.get('fecha_inicio_semana', instance.fecha_inicio_semana)
+        instance.fecha_fin_semana = validated_data.get('fecha_fin_semana', instance.fecha_fin_semana)
+        instance.observaciones = validated_data.get('observaciones', instance.observaciones)
+        instance.estado = validated_data.get('estado', instance.estado)
         instance.save()
         
-        # Si se enviaron detalles, reemplazar todos
-        if detalles_data is not None:
-            instance.detalles.all().delete()
+        # Eliminar tipos existentes (cascade elimina detalles)
+        instance.tipos.all().delete()
+        
+        # Recrear tipos y detalles
+        for tipo_data in tipos_data:
+            detalles_data = tipo_data.pop('detalles')
+            packing_tipo = PackingTipo.objects.create(
+                packing_semanal=instance,
+                tipo_fruta=tipo_data['tipo_fruta']
+            )
+            
             for detalle_data in detalles_data:
-                PackingDetalle.objects.create(packing=instance, **detalle_data)
+                PackingDetalle.objects.create(
+                    packing_tipo=packing_tipo,
+                    **detalle_data
+                )
+            
+            packing_tipo.actualizar_kg_total()
         
         return instance
