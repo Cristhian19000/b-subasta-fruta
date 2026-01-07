@@ -44,10 +44,12 @@ INSTALLED_APPS = [
     
     # Aplicaciones de terceros
     'rest_framework',               # Django REST Framework para la API
+    'rest_framework_simplejwt',     # JWT para autenticación
     'corsheaders',                  # Manejo de CORS para peticiones del frontend
     
     # Aplicaciones locales del proyecto
     'clientes',                     # Módulo de gestión de clientes
+    'usuarios',                     # Módulo de gestión de usuarios
 ]
 
 # =============================================================================
@@ -83,13 +85,30 @@ CORS_ALLOW_CREDENTIALS = True
 # CONFIGURACIÓN DE DJANGO REST FRAMEWORK
 # =============================================================================
 REST_FRAMEWORK = {
-    # Clases de permisos por defecto (AllowAny = sin autenticación requerida)
+    # Clases de autenticación por defecto
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
+    # Clases de permisos por defecto
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',
+        'rest_framework.permissions.IsAuthenticated',
     ],
     # Paginación automática para listados
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,  # 20 registros por página
+}
+
+# =============================================================================
+# CONFIGURACIÓN DE JWT (JSON Web Tokens)
+# =============================================================================
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=8),      # Token válido por 8 horas
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),      # Refresh token válido por 7 días
+    'ROTATE_REFRESH_TOKENS': True,                    # Rotar refresh tokens
+    'BLACKLIST_AFTER_ROTATION': True,                 # Invalidar tokens antiguos
+    'AUTH_HEADER_TYPES': ('Bearer',),                 # Tipo de header de autenticación
 }
 
 ROOT_URLCONF = 'subasta_frutas.urls'

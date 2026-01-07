@@ -1,0 +1,96 @@
+/**
+ * Formulario de Usuario - Crear/Editar usuario.
+ */
+
+import { Button, Input } from '../../components/common';
+
+const UsuarioForm = ({ formData, onChange, onSubmit, onCancel, mode }) => {
+    const handleInputChange = (e) => {
+        const { name, value, type, checked } = e.target;
+        onChange({
+            ...formData,
+            [name]: type === 'checkbox' ? checked : value
+        });
+    };
+
+    return (
+        <form onSubmit={onSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+                <Input
+                    label="Usuario"
+                    name="username"
+                    value={formData.username}
+                    onChange={handleInputChange}
+                    required
+                    disabled={mode === 'edit'}
+                />
+                <Input
+                    label="Email"
+                    name="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    required
+                />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+                <Input
+                    label="Nombre"
+                    name="first_name"
+                    value={formData.first_name}
+                    onChange={handleInputChange}
+                />
+                <Input
+                    label="Apellido"
+                    name="last_name"
+                    value={formData.last_name}
+                    onChange={handleInputChange}
+                />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+                <Input
+                    label={mode === 'create' ? 'Contraseña' : 'Contraseña (dejar vacío para mantener)'}
+                    name="password"
+                    type="password"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    required={mode === 'create'}
+                    placeholder={mode === 'edit' ? 'Dejar vacío para mantener' : ''}
+                />
+                <Input
+                    label="Teléfono"
+                    name="telefono"
+                    value={formData.telefono}
+                    onChange={handleInputChange}
+                />
+            </div>
+
+            <div className="pt-2">
+                <label className="flex items-center text-sm text-gray-700 cursor-pointer">
+                    <input
+                        type="checkbox"
+                        name="es_administrador"
+                        checked={formData.es_administrador}
+                        onChange={handleInputChange}
+                        className="mr-2 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
+                    />
+                    Es Administrador (acceso al módulo de usuarios)
+                </label>
+            </div>
+
+            {/* Botones */}
+            <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                <Button variant="secondary" onClick={onCancel}>
+                    Cancelar
+                </Button>
+                <Button type="submit">
+                    {mode === 'create' ? 'Crear' : 'Guardar'}
+                </Button>
+            </div>
+        </form>
+    );
+};
+
+export default UsuarioForm;
