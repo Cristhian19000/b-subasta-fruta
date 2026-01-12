@@ -144,3 +144,39 @@ class ClienteViewSet(viewsets.ModelViewSet):
             'message': f'Estatus de ficha actualizado a {nuevo_estatus}',
             'cliente': ClienteSerializer(cliente).data
         })
+
+    @action(detail=False, methods=['get'])
+    def estadisticas(self, request):
+        """
+        Obtiene estadísticas generales de los clientes.
+        
+        Endpoint: GET /api/clientes/estadisticas/
+        
+        Retorna:
+            - total_clientes: Total de clientes en el sistema
+            - clientes_habilitados: Clientes con estado 'habilitado'
+            - clientes_deshabilitados: Clientes con estado 'deshabilitado'
+            - fichas_pendientes: Clientes con estatus_ficha 'pendiente'
+            - fichas_recepcionadas: Clientes con estatus_ficha 'recepcionado'
+            - correos_confirmados: Clientes con correo confirmado
+            - correos_pendientes: Clientes sin correo confirmado
+        """
+        from django.db.models import Count, Q
+        
+        total = Cliente.objects.count()
+        habilitados = Cliente.objects.filter(estado='habilitado').count()
+        deshabilitados = Cliente.objects.filter(estado='deshabilitado').count()
+        fichas_pendientes = Cliente.objects.filter(estatus_ficha='pendiente').count()
+        fichas_recepcionadas = Cliente.objects.filter(estatus_ficha='recepcionado').count()
+        correos_confirmados = Cliente.objects.filter(confirmacion_correo=True).count()
+        correos_pendientes = Cliente.objects.filter(confirmacion_correo=False).count()
+        
+        return Response({
+            'total_clientes': total,
+            'clientes_habilitados': habilitados,
+            'clientes_deshabilitados': deshabilitados,
+            'fichas_pendientes': fichas_pendientes,
+            'fichas_recepcionadas': fichas_recepcionadas,
+            'correos_confirmados': correos_confirmados,
+            'correos_pendientes': correos_pendientes,
+        })
