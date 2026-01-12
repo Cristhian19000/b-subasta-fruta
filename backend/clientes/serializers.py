@@ -7,6 +7,7 @@ a formato JSON y viceversa, incluyendo validaciones personalizadas.
 
 from rest_framework import serializers
 from .models import Cliente
+from django.contrib.auth.hashers import make_password
 
 
 class ClienteSerializer(serializers.ModelSerializer):
@@ -33,6 +34,7 @@ class ClienteSerializer(serializers.ModelSerializer):
             'tipo',
             'sede',
             'estado',
+            'password',
             'contacto_1',
             'cargo_1',
             'numero_1',
@@ -48,9 +50,23 @@ class ClienteSerializer(serializers.ModelSerializer):
         ]
         # Campos que no se pueden modificar (solo lectura)
         read_only_fields = ['id', 'fecha_creacion', 'fecha_actualizacion']
-    
+        extra_kwargs = {
+            'password' : {'write_only':True, 'required': False}
+        }
+
+    def create(self, validated_data):
+        """Encripta la contraseña al crear el cliente."""
+        if 'password' in validated_data and validated_data['password']:
+            validated_data['password'] = make_password(validated_data['password'])
+        return super().create(validated_data)
+    def update(self, instance, validated_data):
+            """Encripta la contraseña al actualizar si se proporciona una nueva."""
+            if 'password' in validated_data and validated_data['password']:
+                validated_data['password'] = make_password(validated_data['password'])
+            return super().update(instance, validated_data)
+        
     def validate_ruc_dni(self, value):
-        """
+        """     
         Valida que el RUC/DNI tenga el formato correcto.
         
         Reglas de validación:

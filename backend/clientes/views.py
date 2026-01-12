@@ -180,3 +180,34 @@ class ClienteViewSet(viewsets.ModelViewSet):
             'correos_confirmados': correos_confirmados,
             'correos_pendientes': correos_pendientes,
         })
+
+     # =========================================================================
+    # ACCIÓN PARA GESTIÓN DE CREDENCIALES
+    # =========================================================================
+
+    @action(detail=True, methods=['patch'])
+    def resetear_password(self, request, pk=None):
+        """
+        Permite al administrador asignar una nueva contraseña a un cliente.
+        
+        Endpoint: PATCH /api/clientes/{id}/resetear_password/
+        Body: { "password": "nueva_clave_123" }
+        """
+        cliente = self.get_object()
+        nueva_password = request.data.get('password')
+
+        if not nueva_password:
+            return Response(
+                {'error': 'Debe proporcionar una nueva contraseña.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Usamos el serializer para aprovechar la lógica de encriptación (make_password)
+        # que ya definimos en el método update del serializer.
+        serializer = ClienteSerializer(cliente, data={'password': nueva_password}, partial=True)
+        
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'message': 'Contraseña actualizada correctamente.'})
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

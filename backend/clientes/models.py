@@ -176,6 +176,13 @@ class Cliente(models.Model):
         auto_now=True,
         verbose_name='Fecha de Actualización'
     )
+
+    password = models.CharField(
+        max_length=128,
+        verbose_name='Contraseña',
+        null=True,  # Permite que los registros actuales no den error al migrar
+        blank=True  # Permite que el campo se envíe vacío desde el frontend si no se cambia
+    )
     
     class Meta:
         """Configuración del modelo Cliente."""
