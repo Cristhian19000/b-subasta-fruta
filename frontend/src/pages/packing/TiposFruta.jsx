@@ -164,7 +164,6 @@ const TiposFruta = () => {
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="flex items-center">
-                                            <span className="text-lg mr-2">🍇</span>
                                             <span className="text-sm font-medium text-gray-900">
                                                 {tipo.nombre}
                                             </span>
