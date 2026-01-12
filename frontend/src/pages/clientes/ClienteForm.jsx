@@ -1,5 +1,6 @@
 /**
  * Formulario de Cliente - Crear/Editar cliente.
+ * Actualizado: Enero 2026
  */
 
 import { Button, Input, Select } from '../../components/common';
@@ -67,6 +68,29 @@ const ClienteForm = ({ formData, onChange, onSubmit, onCancel, mode }) => {
                             { value: 'deshabilitado', label: 'Deshabilitado' },
                         ]}
                     />
+                </div>
+            </div>
+
+            {/* Credenciales de Acceso */}
+            <div>
+                <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
+                    Credenciales de Acceso
+                </h4>
+                <div className="grid grid-cols-1 gap-4">
+                    <Input
+                        label={mode === 'create' ? "Contraseña de Acceso" : "Cambiar Contraseña"}
+                        name="password"
+                        type="password"
+                        value={formData.password || ''}
+                        onChange={handleInputChange}
+                        required={mode === 'create'}
+                        placeholder={mode === 'create' ? "Defina una contraseña inicial" : "Dejar en blanco para mantener la actual"}
+                    />
+                    <p className="text-xs text-gray-400 -mt-2">
+                        {mode === 'create' 
+                            ? "Esta contraseña permitirá al cliente ingresar al sistema de subastas." 
+                            : "Solo complete este campo si el cliente solicitó un cambio de clave o la olvidó."}
+                    </p>
                 </div>
             </div>
 
@@ -180,7 +204,7 @@ const ClienteForm = ({ formData, onChange, onSubmit, onCancel, mode }) => {
                     Cancelar
                 </Button>
                 <Button type="submit">
-                    {mode === 'create' ? 'Crear' : 'Guardar'}
+                    {mode === 'create' ? 'Crear Cliente' : 'Guardar Cambios'}
                 </Button>
             </div>
         </form>

@@ -7,6 +7,7 @@ a formato JSON y viceversa, incluyendo validaciones personalizadas.
 
 from rest_framework import serializers
 from .models import Cliente
+from django.contrib.auth.hashers import make_password, check_password
 
 
 class ClienteSerializer(serializers.ModelSerializer):
@@ -33,6 +34,7 @@ class ClienteSerializer(serializers.ModelSerializer):
             'tipo',
             'sede',
             'estado',
+            'password',
             'contacto_1',
             'cargo_1',
             'numero_1',
@@ -48,9 +50,23 @@ class ClienteSerializer(serializers.ModelSerializer):
         ]
         # Campos que no se pueden modificar (solo lectura)
         read_only_fields = ['id', 'fecha_creacion', 'fecha_actualizacion']
-    
+        extra_kwargs = {
+            'password' : {'write_only':True, 'required': False}
+        }
+
+    def create(self, validated_data):
+        """Encripta la contraseña al crear el cliente."""
+        if 'password' in validated_data and validated_data['password']:
+            validated_data['password'] = make_password(validated_data['password'])
+        return super().create(validated_data)
+    def update(self, instance, validated_data):
+            """Encripta la contraseña al actualizar si se proporciona una nueva."""
+            if 'password' in validated_data and validated_data['password']:
+                validated_data['password'] = make_password(validated_data['password'])
+            return super().update(instance, validated_data)
+        
     def validate_ruc_dni(self, value):
-        """
+        """     
         Valida que el RUC/DNI tenga el formato correcto.
         
         Reglas de validación:
@@ -106,3 +122,32 @@ class ClienteListSerializer(serializers.ModelSerializer):
             'estatus_ficha',
             'confirmacion_correo',
         ]
+        
+class ClienteLoginSerializer(serializers.Serializer):
+    """
+    Serializer para validar el inicio de sesión de clientes desde la App Móvil.
+    """
+    ruc_dni = serializers.CharField()
+    password = serializers.CharField(write_only=True)
+
+    def validate(self, data):
+        ruc_dni = data.get('ruc_dni')
+        password = data.get('password')
+
+        try:
+            # Buscamos al cliente por su identificador único
+            cliente = Cliente.objects.get(ruc_dni=ruc_dni)
+        except Cliente.DoesNotExist:
+            raise serializers.ValidationError("Las credenciales son incorrectas.")
+
+        # Verificamos si la cuenta está habilitada para entrar
+        if cliente.estado != 'habilitado':
+            raise serializers.ValidationError("Esta cuenta está deshabilitada.")
+
+        # Comparamos la contraseña enviada con el hash guardado en la BD
+        if not check_password(password, cliente.password):
+            raise serializers.ValidationError("Las credenciales son incorrectas.")
+
+        # Guardamos el objeto cliente en el contexto para la vista
+        data['cliente'] = cliente
+        return data
