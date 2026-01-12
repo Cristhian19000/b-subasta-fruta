@@ -1,0 +1,4 @@
+
+# **/ permite ignorar pycache en cualquier subcarpeta
+echo "**/__pycache__/" >> .gitignore
+echo "*.pyc" >> .gitignore
