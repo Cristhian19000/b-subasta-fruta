@@ -92,7 +92,7 @@ REST_FRAMEWORK = {
     ],
     # Clases de permisos por defecto
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
+        'rest_framework.permissions.AllowAny',
     ],
     # Paginación automática para listados
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
