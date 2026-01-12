@@ -10,7 +10,7 @@ from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import Cliente
-from .serializers import ClienteSerializer, ClienteListSerializer
+from .serializers import ClienteSerializer, ClienteListSerializer, ClienteLoginSerializer
 
 
 class ClienteViewSet(viewsets.ModelViewSet):
@@ -209,5 +209,35 @@ class ClienteViewSet(viewsets.ModelViewSet):
         if serializer.is_valid():
             serializer.save()
             return Response({'message': 'Contraseña actualizada correctamente.'})
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    # =========================================================================
+    # ENDPOINT PARA APP MÓVIL (KOTLIN)
+    # =========================================================================
+
+    @action(detail=False, methods=['post'], url_path='login-movil')
+    def login_movil(self, request):
+        """
+        Endpoint para el inicio de sesión de clientes desde la aplicación móvil.
+        
+        Ruta: POST /api/clientes/login-movil/
+        Body: { "ruc_dni": "12345678", "password": "..." }
+        """
+        serializer = ClienteLoginSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            cliente = serializer.validated_data['cliente']
+            # Aquí devolvemos la información del cliente. 
+            # Si usas JWT, aquí deberías generar y devolver el token.
+            return Response({
+                'message': 'Login exitoso',
+                'cliente': {
+                    'id': cliente.id,
+                    'ruc_dni': cliente.ruc_dni,
+                    'nombre': cliente.nombre_razon_social,
+                    'sede': cliente.sede
+                }
+            }, status=status.HTTP_200_OK)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
