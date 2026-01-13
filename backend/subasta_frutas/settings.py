@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-namtjev)!xugm#-r0n@##^6rt=br%()(uxq6_!9z8vjj#nkqtd
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['10.0.2.2', '127.0.0.1', 'localhost']
 
 
 # Application definition
@@ -77,6 +77,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",    # Vite (React, Vue, etc.)
     "http://127.0.0.1:3000",    # Alternativa localhost
     "http://127.0.0.1:5173",    # Alternativa localhost
+    "http://10.0.2.2"
 ]
 
 # Permitir envío de cookies/credenciales en peticiones CORS
