@@ -14,8 +14,8 @@ import PackingDetalle from './PackingDetalle';
 // Configuración de colores para estados
 const ESTADO_COLORS = {
     'PROYECTADO': 'warning',
-    'ACTIVO': 'success',
-    'CERRADO': 'default',
+    'EN_SUBASTA': 'success',
+    'FINALIZADO': 'default',
     'ANULADO': 'error'
 };
 

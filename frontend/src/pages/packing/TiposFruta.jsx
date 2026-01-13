@@ -222,7 +222,6 @@ const TiposFruta = () => {
                         value={formData.nombre}
                         onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
                         required
-                        placeholder="Ej: Arándano, Mango, Uva"
                     />
 
                     <div className="flex items-center">

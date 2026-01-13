@@ -90,8 +90,8 @@ class PackingSemanal(models.Model):
     
     ESTADO_CHOICES = [
         ('PROYECTADO', 'Proyectado'),
-        ('ACTIVO', 'Activo'),
-        ('CERRADO', 'Cerrado'),
+        ('EN_SUBASTA', 'En Subasta'),
+        ('FINALIZADO', 'Finalizado'),
         ('ANULADO', 'Anulado'),
     ]
     

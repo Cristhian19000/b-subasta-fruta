@@ -24,8 +24,8 @@ const DIAS_SEMANA = [
 
 const ESTADOS = [
     { value: 'PROYECTADO', label: 'Proyectado' },
-    { value: 'ACTIVO', label: 'Activo' },
-    { value: 'CERRADO', label: 'Cerrado' },
+    { value: 'EN_SUBASTA', label: 'En Subasta' },
+    { value: 'FINALIZADO', label: 'Finalizado' },
     { value: 'ANULADO', label: 'Anulado' },
 ];
 
