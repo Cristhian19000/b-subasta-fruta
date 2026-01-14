@@ -8,6 +8,7 @@ Estructura jerárquica:
 """
 
 from rest_framework import serializers
+from django.db import transaction
 from .models import Empresa, TipoFruta, PackingSemanal, PackingTipo, PackingDetalle
 
 
@@ -44,7 +45,7 @@ class PackingDetalleSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = PackingDetalle
-        fields = ['id', 'dia', 'dia_display', 'fecha', 'py', 'kg']
+        fields = ['id', 'dia', 'dia_display', 'fecha', 'py']
         read_only_fields = ['id']
 
 
@@ -131,8 +132,7 @@ class PackingDetalleCreateSerializer(serializers.Serializer):
     """Serializer para crear detalles diarios."""
     dia = serializers.ChoiceField(choices=PackingDetalle.DIA_CHOICES)
     fecha = serializers.DateField()
-    py = serializers.CharField(max_length=50, required=False, allow_blank=True, default='')
-    kg = serializers.DecimalField(max_digits=10, decimal_places=2, default=0)
+    py = serializers.DecimalField(max_digits=10, decimal_places=2, default=0)
 
 
 class PackingTipoCreateSerializer(serializers.Serializer):
@@ -212,31 +212,32 @@ class PackingSemanalCreateSerializer(serializers.Serializer):
         """Actualizar el packing semanal reemplazando tipos y detalles."""
         tipos_data = validated_data.pop('tipos')
         
-        # Actualizar campos de cabecera
-        instance.empresa = validated_data.get('empresa', instance.empresa)
-        instance.fecha_inicio_semana = validated_data.get('fecha_inicio_semana', instance.fecha_inicio_semana)
-        instance.fecha_fin_semana = validated_data.get('fecha_fin_semana', instance.fecha_fin_semana)
-        instance.observaciones = validated_data.get('observaciones', instance.observaciones)
-        instance.estado = validated_data.get('estado', instance.estado)
-        instance.save()
-        
-        # Eliminar tipos existentes (cascade elimina detalles)
-        instance.tipos.all().delete()
-        
-        # Recrear tipos y detalles
-        for tipo_data in tipos_data:
-            detalles_data = tipo_data.pop('detalles')
-            packing_tipo = PackingTipo.objects.create(
-                packing_semanal=instance,
-                tipo_fruta=tipo_data['tipo_fruta']
-            )
+        with transaction.atomic(): # Si algo falla, no se borra nada
+            # Actualizar cabecera
+            instance.empresa = validated_data.get('empresa', instance.empresa)
+            instance.fecha_inicio_semana = validated_data.get('fecha_inicio_semana', instance.fecha_inicio_semana)
+            instance.fecha_fin_semana = validated_data.get('fecha_fin_semana', instance.fecha_fin_semana)
+            instance.observaciones = validated_data.get('observaciones', instance.observaciones)
+            instance.estado = validated_data.get('estado', instance.estado)
+            instance.save()
             
-            for detalle_data in detalles_data:
-                PackingDetalle.objects.create(
-                    packing_tipo=packing_tipo,
-                    **detalle_data
+            # Eliminar y recrear
+            instance.tipos.all().delete()
+            
+            for tipo_data in tipos_data:
+                detalles_data = tipo_data.pop('detalles')
+                packing_tipo = PackingTipo.objects.create(
+                    packing_semanal=instance,
+                    tipo_fruta=tipo_data['tipo_fruta']
                 )
-            
-            packing_tipo.actualizar_kg_total()
-        
+                
+                for detalle_data in detalles_data:
+                    # detalle_data ahora solo contiene 'dia', 'fecha' y 'py'
+                    PackingDetalle.objects.create(
+                        packing_tipo=packing_tipo,
+                        **detalle_data
+                    )
+                
+                packing_tipo.actualizar_kg_total()
+                
         return instance

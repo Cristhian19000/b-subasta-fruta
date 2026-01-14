@@ -194,6 +194,7 @@ const Packing = () => {
     };
 
     const handleSave = async (data) => {
+        setError(''); // Limpiar errores previos
         try {
             if (modalMode === 'create') {
                 await api.post('/packing-semanal/', data);
@@ -207,11 +208,20 @@ const Packing = () => {
             setTimeout(() => setSuccess(''), 3000);
         } catch (err) {
             const errorData = err.response?.data;
+            
             if (errorData) {
-                const mensajes = Object.values(errorData).flat().join(', ');
-                setError(mensajes || 'Error al guardar el packing');
+                // Si el error es por la fecha duplicada, Django envía: 
+                // { "fecha_inicio_semana": ["Ya existe un packing para..."] }
+                
+                // Extraemos todos los mensajes de error en una sola cadena
+                const mensajes = Object.entries(errorData).map(([campo, errores]) => {
+                    const nombreCampo = campo === 'fecha_inicio_semana' ? 'Fecha' : campo;
+                    return `${nombreCampo}: ${errores.join(', ')}`;
+                }).join(' | ');
+
+                setError(mensajes); // Este estado 'error' debe mostrarse en tu UI
             } else {
-                setError('Error al guardar el packing');
+                setError('Error de conexión con el servidor');
             }
         }
     };
@@ -440,6 +450,7 @@ const Packing = () => {
                         onSave={handleSave}
                         onCancel={() => setShowModal(false)}
                         mode={modalMode}
+                        errorServidor={error}
                     />
                 )}
             </Modal>

@@ -29,7 +29,7 @@ const ESTADOS = [
     { value: 'ANULADO', label: 'Anulado' },
 ];
 
-const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel, mode }) => {
+const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel, mode, errorServidor  }) => {
     // Estado para la cabecera
     const [cabecera, setCabecera] = useState({
         empresa: '',
@@ -67,8 +67,7 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
                     detalles: tipo.detalles.map(d => ({
                         dia: d.dia,
                         fecha: d.fecha,
-                        py: d.py || '',
-                        kg: d.kg || 0,
+                        py: d.py || 0,
                     })),
                 }));
                 setTipos(tiposFormateados);
@@ -152,8 +151,7 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
         const nuevosDetalles = DIAS_SEMANA.map((dia, index) => ({
             dia: dia.value,
             fecha: calculateDate(cabecera.fecha_inicio_semana, index),
-            py: '',
-            kg: 0,
+            py: 0,
         }));
 
         setTipos(prev => [...prev, {
@@ -179,10 +177,7 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
                     ...tipo,
                     detalles: tipo.detalles.map((detalle, i) => {
                         if (i === diaIndex) {
-                            return {
-                                ...detalle,
-                                [field]: field === 'kg' ? value : value, // Guardamos el valor como string para kg
-                            };
+                            return { ...detalle, [field]: value };
                         }
                         return detalle;
                     }),
@@ -201,10 +196,7 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
                     ...tipo,
                     detalles: tipo.detalles.map((detalle, i) => {
                         if (i === diaIndex) {
-                            return {
-                                ...detalle,
-                                kg: numValue,
-                            };
+                            return { ...detalle, py: numValue };
                         }
                         return detalle;
                     }),
@@ -222,7 +214,7 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
 
     // Calcula el total de kg por tipo
     const calcularTotalTipo = (detalles) => {
-        return detalles.reduce((sum, d) => sum + (parseFloat(d.kg) || 0), 0);
+        return detalles.reduce((sum, d) => sum + (parseFloat(d.py) || 0), 0);
     };
 
     // Calcula el total general
@@ -271,12 +263,12 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
                 detalles: tipo.detalles.map(d => ({
                     dia: d.dia,
                     fecha: d.fecha,
-                    py: d.py,
-                    kg: parseFloat(d.kg) || 0,
+                    py: parseFloat(d.py) || 0 
                 })),
             })),
         };
 
+        console.log("Enviando datos corregidos:", data);
         onSave(data);
     };
 
@@ -453,11 +445,8 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
                                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase w-32">
                                             Fecha
                                         </th>
-                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                            PY
-                                        </th>
                                         <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase w-32">
-                                            KG
+                                            PY
                                         </th>
                                     </tr>
                                 </thead>
@@ -472,18 +461,9 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
                                             </td>
                                             <td className="px-4 py-2">
                                                 <input
-                                                    type="text"
-                                                    value={detalle.py}
-                                                    onChange={(e) => handleDetalleChange(tipo.tipo_fruta, index, 'py', e.target.value)}
-                                                    placeholder="Ej: PY-001"
-                                                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-gray-900"
-                                                />
-                                            </td>
-                                            <td className="px-4 py-2">
-                                                <input
                                                     type="number"
-                                                    value={getKgDisplayValue(detalle.kg)}
-                                                    onChange={(e) => handleDetalleChange(tipo.tipo_fruta, index, 'kg', e.target.value)}
+                                                    value={getKgDisplayValue(detalle.py)}
+                                                    onChange={(e) => handleDetalleChange(tipo.tipo_fruta, index, 'py', e.target.value)}
                                                     onBlur={(e) => handleKgBlur(tipo.tipo_fruta, index, e.target.value)}
                                                     onFocus={(e) => e.target.select()}
                                                     min="0"
@@ -517,6 +497,24 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
                     <p className="text-gray-500">
                         No hay tipos de fruta agregados. Use el selector de arriba para agregar tipos.
                     </p>
+                </div>
+            )}
+
+            
+            {errorServidor && (
+                <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-md shadow-sm">
+                    <div className="flex">
+                        <div className="flex-shrink-0">
+                            <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                            </svg>
+                        </div>
+                        <div className="ml-3">
+                            <p className="text-sm text-red-700">
+                                {errorServidor}
+                            </p>
+                        </div>
+                    </div>
                 </div>
             )}
 

@@ -10,8 +10,8 @@ import { Button, Badge } from '../../components/common';
 // Configuración de colores para estados
 const ESTADO_COLORS = {
     'PROYECTADO': 'warning',
-    'ACTIVO': 'success',
-    'CERRADO': 'default',
+    'EN_SUBASTA': 'success',
+    'FINALIZADO': 'default',
     'ANULADO': 'error'
 };
 
@@ -60,7 +60,7 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
 
     const calcularTotalTipo = (detalles) => {
         if (!detalles) return 0;
-        return detalles.reduce((sum, d) => sum + (parseFloat(d.kg) || 0), 0);
+        return detalles.reduce((sum, d) => sum + (parseFloat(d.py) || 0), 0);
     };
 
     return (
@@ -131,11 +131,8 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
                                                 <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
                                                     Fecha
                                                 </th>
-                                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                                    PY
-                                                </th>
                                                 <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">
-                                                    Kilogramos
+                                                    PY
                                                 </th>
                                             </tr>
                                         </thead>
@@ -148,17 +145,8 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
                                                     <td className="px-4 py-2 text-sm text-gray-500">
                                                         {formatDateShort(detalle.fecha)}
                                                     </td>
-                                                    <td className="px-4 py-2 text-sm text-gray-900">
-                                                        {detalle.py ? (
-                                                            <code className="bg-gray-100 px-2 py-0.5 rounded">
-                                                                {detalle.py}
-                                                            </code>
-                                                        ) : (
-                                                            <span className="text-gray-400">-</span>
-                                                        )}
-                                                    </td>
                                                     <td className="px-4 py-2 text-sm text-right font-medium text-gray-900">
-                                                        {formatKg(detalle.kg)} kg
+                                                        {formatKg(detalle.py)} kg
                                                     </td>
                                                 </tr>
                                             ))}

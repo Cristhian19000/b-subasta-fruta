@@ -208,7 +208,7 @@ class PackingTipo(models.Model):
     
     def calcular_kg_total(self):
         """Calcula el total de kg sumando todos los detalles diarios."""
-        total = self.detalles.aggregate(total=Sum('kg'))['total']
+        total = self.detalles.aggregate(total=Sum('py'))['total']
         return total or 0
     
     def actualizar_kg_total(self):
@@ -251,17 +251,11 @@ class PackingDetalle(models.Model):
     fecha = models.DateField(
         verbose_name="Fecha"
     )
-    py = models.CharField(
-        max_length=50,
-        blank=True,
-        default='',
-        verbose_name="PY"
-    )
-    kg = models.DecimalField(
+    py = models.DecimalField(
         max_digits=10,
         decimal_places=2,
         default=0,
-        verbose_name="Kilogramos"
+        verbose_name="Kilogramos (PY)"
     )
     fecha_creacion = models.DateTimeField(
         auto_now_add=True,

@@ -31,7 +31,7 @@ class PackingDetalleInline(admin.TabularInline):
     
     model = PackingDetalle
     extra = 0
-    fields = ['dia', 'fecha', 'py', 'kg']
+    fields = ['dia', 'fecha', 'py']
     readonly_fields = []
     can_delete = True
 
@@ -106,7 +106,7 @@ class PackingSemanalAdmin(admin.ModelAdmin):
 class PackingDetalleAdmin(admin.ModelAdmin):
     """Admin para PackingDetalle (acceso directo)."""
     
-    list_display = ['id', 'get_empresa', 'get_tipo_fruta', 'dia', 'fecha', 'py', 'kg']
+    list_display = ['id', 'get_empresa', 'get_tipo_fruta', 'dia', 'fecha', 'py']
     list_filter = ['dia', 'packing_tipo__tipo_fruta', 'packing_tipo__packing_semanal__empresa']
     search_fields = [
         'packing_tipo__tipo_fruta__nombre', 
