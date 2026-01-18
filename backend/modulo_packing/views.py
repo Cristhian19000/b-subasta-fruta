@@ -6,9 +6,10 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.db.models import Count
 
-from .models import Empresa, TipoFruta, PackingSemanal, PackingTipo, PackingDetalle
+from .models import Empresa, TipoFruta, PackingSemanal, PackingTipo, PackingDetalle, PackingImagen
 from .serializers import (
     EmpresaSerializer,
     TipoFrutaSerializer,
@@ -16,6 +17,7 @@ from .serializers import (
     PackingSemanalDetailSerializer,
     PackingSemanalCreateSerializer,
     PackingTipoSerializer,
+    PackingImagenSerializer,
 )
 
 
@@ -208,4 +210,122 @@ class PackingTipoViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(tipo_fruta_id=tipo_fruta_id)
         
         return queryset.order_by('tipo_fruta__nombre')
+
+
+class PackingImagenViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet para gestionar imágenes de packing.
+    
+    Soporta:
+    - Subir imágenes generales del packing semanal
+    - Subir imágenes por tipo de fruta
+    - Listar imágenes por packing
+    - Eliminar imágenes
+    """
+    
+    queryset = PackingImagen.objects.select_related('packing_semanal', 'packing_tipo__tipo_fruta').all()
+    serializer_class = PackingImagenSerializer
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    
+    def get_queryset(self):
+        """Filtrar imágenes por packing o tipo."""
+        queryset = super().get_queryset()
+        
+        # Filtro por packing semanal
+        packing_id = self.request.query_params.get('packing', None)
+        if packing_id:
+            queryset = queryset.filter(packing_semanal_id=packing_id)
+        
+        # Filtro para imágenes generales (sin tipo) - tiene prioridad
+        solo_generales = self.request.query_params.get('generales', None)
+        if solo_generales == 'true':
+            queryset = queryset.filter(packing_tipo__isnull=True)
+            return queryset.order_by('-fecha_subida')
+        
+        # Filtro por tipo de fruta específico
+        tipo_id = self.request.query_params.get('tipo', None)
+        if tipo_id:
+            queryset = queryset.filter(packing_tipo_id=tipo_id)
+        
+        return queryset.order_by('-fecha_subida')
+    
+    def create(self, request, *args, **kwargs):
+        """
+        Crear una nueva imagen.
+        
+        Body (form-data):
+        - packing_semanal: ID del packing (requerido)
+        - packing_tipo: ID del tipo de fruta (opcional)
+        - imagen: archivo de imagen (requerido)
+        - descripcion: texto descriptivo (opcional)
+        """
+        serializer = self.get_serializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
+    @action(detail=False, methods=['post'], url_path='subir-multiple')
+    def subir_multiple(self, request):
+        """
+        Subir múltiples imágenes a la vez.
+        
+        Body (form-data):
+        - packing_semanal: ID del packing (requerido)
+        - packing_tipo: ID del tipo de fruta (opcional)
+        - imagenes: array de archivos de imagen
+        """
+        packing_id = request.data.get('packing_semanal')
+        tipo_id = request.data.get('packing_tipo', None)
+        imagenes = request.FILES.getlist('imagenes')
+        
+        if not packing_id:
+            return Response(
+                {'error': 'Debe proporcionar el ID del packing semanal'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if not imagenes:
+            return Response(
+                {'error': 'Debe proporcionar al menos una imagen'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Verificar que el packing existe
+        try:
+            packing = PackingSemanal.objects.get(pk=packing_id)
+        except PackingSemanal.DoesNotExist:
+            return Response(
+                {'error': 'Packing semanal no encontrado'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Verificar tipo si se proporciona
+        packing_tipo = None
+        if tipo_id:
+            try:
+                packing_tipo = PackingTipo.objects.get(pk=tipo_id, packing_semanal=packing)
+            except PackingTipo.DoesNotExist:
+                return Response(
+                    {'error': 'Tipo de fruta no encontrado o no pertenece a este packing'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+        
+        # Crear todas las imágenes
+        imagenes_creadas = []
+        for imagen in imagenes:
+            imagen_obj = PackingImagen.objects.create(
+                packing_semanal=packing,
+                packing_tipo=packing_tipo,
+                imagen=imagen,
+                descripcion=request.data.get('descripcion', '')
+            )
+            imagenes_creadas.append(imagen_obj)
+        
+        serializer = PackingImagenSerializer(
+            imagenes_creadas, 
+            many=True,
+            context={'request': request}
+        )
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 

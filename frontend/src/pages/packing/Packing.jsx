@@ -196,16 +196,20 @@ const Packing = () => {
     const handleSave = async (data) => {
         setError(''); // Limpiar errores previos
         try {
+            let response;
             if (modalMode === 'create') {
-                await api.post('/packing-semanal/', data);
+                response = await api.post('/packing-semanal/', data);
                 setSuccess('Packing creado correctamente');
             } else {
-                await api.put(`/packing-semanal/${selectedPacking.id}/`, data);
+                response = await api.put(`/packing-semanal/${selectedPacking.id}/`, data);
                 setSuccess('Packing actualizado correctamente');
             }
             setShowModal(false);
             fetchPackings();
             setTimeout(() => setSuccess(''), 3000);
+            
+            // Devolver el packing creado/actualizado para subir imágenes
+            return response.data;
         } catch (err) {
             const errorData = err.response?.data;
             
@@ -223,6 +227,7 @@ const Packing = () => {
             } else {
                 setError('Error de conexión con el servidor');
             }
+            throw err; // Propagar el error
         }
     };
 

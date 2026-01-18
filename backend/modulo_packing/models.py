@@ -282,3 +282,57 @@ class PackingDetalle(models.Model):
         super().delete(*args, **kwargs)
         packing_tipo.actualizar_kg_total()
 
+
+# =============================================================================
+# 6. TABLA: PACKING_IMAGEN
+# =============================================================================
+class PackingImagen(models.Model):
+    """
+    Imágenes asociadas al packing.
+    
+    Puede ser:
+    - General del packing semanal (packing_semanal + packing_tipo=null)
+    - Por tipo de fruta (packing_semanal + packing_tipo)
+    
+    Todas las imágenes son opcionales.
+    """
+    
+    packing_semanal = models.ForeignKey(
+        PackingSemanal,
+        on_delete=models.CASCADE,
+        related_name='imagenes',
+        verbose_name="Packing Semanal"
+    )
+    packing_tipo = models.ForeignKey(
+        PackingTipo,
+        on_delete=models.CASCADE,
+        related_name='imagenes',
+        null=True,
+        blank=True,
+        verbose_name="Tipo de Fruta (opcional)"
+    )
+    imagen = models.ImageField(
+        upload_to='packing/%Y/%m/',
+        verbose_name="Imagen"
+    )
+    descripcion = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        verbose_name="Descripción"
+    )
+    fecha_subida = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="Fecha de subida"
+    )
+    
+    class Meta:
+        verbose_name = "Imagen de Packing"
+        verbose_name_plural = "Imágenes de Packing"
+        ordering = ['-fecha_subida']
+    
+    def __str__(self):
+        if self.packing_tipo:
+            return f"Imagen de {self.packing_tipo.tipo_fruta.nombre} - {self.packing_semanal}"
+        return f"Imagen general de {self.packing_semanal}"
+

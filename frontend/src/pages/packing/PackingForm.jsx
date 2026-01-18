@@ -12,6 +12,8 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '../../components/common';
+import { ImageUploader, ImageGallery } from '../../components/packing';
+import { subirImagen, eliminarImagen } from '../../api/imagenes';
 
 const DIAS_SEMANA = [
     { value: 'LUNES', label: 'Lunes', offset: 0 },
@@ -47,6 +49,15 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
 
     // Tipo de fruta seleccionado para agregar
     const [tipoSeleccionado, setTipoSeleccionado] = useState('');
+
+    // Estado para recargar galería de imágenes
+    const [refreshGallery, setRefreshGallery] = useState(0);
+
+    // Estados para gestión de imágenes pendientes
+    const [imagenesGenerales, setImagenesGenerales] = useState([]);
+    const [imagenesPorTipo, setImagenesPorTipo] = useState({});
+    const [imagenesAEliminar, setImagenesAEliminar] = useState([]); // IDs de imágenes a eliminar
+    const [imagenesASubir, setImagenesASubir] = useState({ generales: [], tipos: {} }); // Archivos nuevos a subir
 
     // Cargar datos si estamos editando
     useEffect(() => {
@@ -246,8 +257,7 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
         return Object.keys(newErrors).length === 0;
     };
 
-    // Maneja el envío del formulario
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         
         if (!validate()) return;
@@ -268,8 +278,176 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
             })),
         };
 
-        console.log("Enviando datos corregidos:", data);
-        onSave(data);
+        console.log("Enviando datos:", data);
+        
+        try {
+            // Guardar el packing
+            const packingCreado = await onSave(data);
+            
+            // Aplicar cambios de imágenes (crear o editar)
+            await aplicarCambiosImagenes(packingCreado);
+            
+            // Si todo salió bien, cerrar el modal automáticamente
+            onCancel();
+        } catch (error) {
+            console.error('Error completo:', error);
+            console.error('Response data:', error.response?.data);
+            const errorMsg = error.response?.data 
+                ? JSON.stringify(error.response.data, null, 2) 
+                : error.message;
+            alert('Error al guardar el packing:\n' + errorMsg);
+        }
+    };
+
+    // Aplicar todos los cambios de imágenes (eliminar y subir)
+    const aplicarCambiosImagenes = async (packingGuardado) => {
+        try {
+            console.log('Aplicando cambios de imágenes...', packingGuardado);
+            
+            // 1. Eliminar imágenes marcadas
+            if (imagenesAEliminar.length > 0) {
+                console.log(`Eliminando ${imagenesAEliminar.length} imágenes`);
+                for (const imagenId of imagenesAEliminar) {
+                    await eliminarImagen(imagenId);
+                }
+            }
+
+            // 2. Subir nuevas imágenes generales
+            if (imagenesASubir.generales.length > 0) {
+                console.log(`Subiendo ${imagenesASubir.generales.length} imágenes generales`);
+                for (const imagenData of imagenesASubir.generales) {
+                    await subirImagen(packingGuardado.id, imagenData.file, null, imagenData.descripcion);
+                }
+            }
+
+            // 3. Subir nuevas imágenes por tipo
+            if (packingGuardado.tipos && packingGuardado.tipos.length > 0) {
+                for (const tipoEnBD of packingGuardado.tipos) {
+                    const imagenesDelTipo = imagenesASubir.tipos[tipoEnBD.tipo_fruta] || [];
+                    
+                    if (imagenesDelTipo.length > 0) {
+                        console.log(`Subiendo ${imagenesDelTipo.length} imágenes para tipo ${tipoEnBD.tipo_fruta_nombre}`);
+                        for (const imagenData of imagenesDelTipo) {
+                            await subirImagen(packingGuardado.id, imagenData.file, tipoEnBD.id, imagenData.descripcion);
+                        }
+                    }
+                }
+            }
+
+            // 4. Subir imágenes pendientes del modo create
+            if (mode === 'create') {
+                // Imágenes generales del create
+                if (imagenesGenerales.length > 0) {
+                    console.log(`Subiendo ${imagenesGenerales.length} imágenes generales (create)`);
+                    for (const imagenData of imagenesGenerales) {
+                        await subirImagen(packingGuardado.id, imagenData.file, null, imagenData.descripcion);
+                    }
+                }
+
+                // Imágenes por tipo del create
+                if (packingGuardado.tipos) {
+                    for (const tipoEnBD of packingGuardado.tipos) {
+                        const imagenesDelTipo = imagenesPorTipo[tipoEnBD.tipo_fruta] || [];
+                        
+                        if (imagenesDelTipo.length > 0) {
+                            console.log(`Subiendo ${imagenesDelTipo.length} imágenes para tipo ${tipoEnBD.tipo_fruta_nombre} (create)`);
+                            for (const imagenData of imagenesDelTipo) {
+                                await subirImagen(packingGuardado.id, imagenData.file, tipoEnBD.id, imagenData.descripcion);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            console.log('Todos los cambios de imágenes aplicados correctamente');
+        } catch (error) {
+            console.error('Error al aplicar cambios de imágenes:', error);
+            alert('El packing se guardó, pero hubo un error al procesar algunas imágenes. Por favor, revisa y vuelve a intentarlo.');
+        }
+    };
+
+    // === MANEJADORES DE IMÁGENES MODO CREATE ===
+    
+    // Manejar selección de imágenes generales (modo creación)
+    const handleImagenesGeneralesSeleccionadas = (files) => {
+        const nuevasImagenes = Array.from(files).map(file => ({
+            file,
+            preview: URL.createObjectURL(file),
+            descripcion: ''
+        }));
+        setImagenesGenerales(prev => [...prev, ...nuevasImagenes]);
+    };
+
+    // Manejar selección de imágenes por tipo (modo creación)
+    const handleImagenesTipoSeleccionadas = (tipoId, files) => {
+        const nuevasImagenes = Array.from(files).map(file => ({
+            file,
+            preview: URL.createObjectURL(file),
+            descripcion: ''
+        }));
+        setImagenesPorTipo(prev => ({
+            ...prev,
+            [tipoId]: [...(prev[tipoId] || []), ...nuevasImagenes]
+        }));
+    };
+
+    // Eliminar imagen pendiente (modo create)
+    const handleEliminarImagenPendiente = (tipo, index) => {
+        if (tipo === 'general') {
+            setImagenesGenerales(prev => {
+                const nueva = [...prev];
+                URL.revokeObjectURL(nueva[index].preview);
+                nueva.splice(index, 1);
+                return nueva;
+            });
+        } else {
+            setImagenesPorTipo(prev => {
+                const nuevas = [...(prev[tipo] || [])];
+                URL.revokeObjectURL(nuevas[index].preview);
+                nuevas.splice(index, 1);
+                return { ...prev, [tipo]: nuevas };
+            });
+        }
+    };
+
+    // === MANEJADORES DE IMÁGENES MODO EDIT ===
+    
+    // Cuando se sube una imagen en edit, agregar a pendientes
+    const handleImagenSubida = (esGeneral, tipoFrutaId = null) => {
+        // Esto es un placeholder para indicar que hubo cambios
+        // La subida real se hará en aplicarCambiosImagenes
+        setRefreshGallery(prev => prev + 1);
+    };
+
+    // Cuando se quiere agregar imágenes en edit mode
+    const handleAgregarImagenesEdit = (files, tipoFrutaId = null) => {
+        const nuevasImagenes = Array.from(files).map(file => ({
+            file,
+            descripcion: ''
+        }));
+
+        if (tipoFrutaId === null) {
+            // Imágenes generales
+            setImagenesASubir(prev => ({
+                ...prev,
+                generales: [...prev.generales, ...nuevasImagenes]
+            }));
+        } else {
+            // Imágenes por tipo
+            setImagenesASubir(prev => ({
+                ...prev,
+                tipos: {
+                    ...prev.tipos,
+                    [tipoFrutaId]: [...(prev.tipos[tipoFrutaId] || []), ...nuevasImagenes]
+                }
+            }));
+        }
+    };
+
+    // Marcar imagen para eliminar (no elimina inmediatamente)
+    const handleMarcarImagenParaEliminar = (imagenId) => {
+        setImagenesAEliminar(prev => [...prev, imagenId]);
+        setRefreshGallery(prev => prev + 1);
     };
 
     // Tipos de fruta disponibles (no agregados aún)
@@ -368,6 +546,86 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
                             placeholder="Notas adicionales (opcional)"
                             className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-gray-900"
                         />
+                    </div>
+
+                    {/* Sección de imágenes generales */}
+                    <div className="md:col-span-2 lg:col-span-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            📸 Imágenes Generales de la Semana (opcional)
+                        </label>
+                        
+                        {mode === 'create' ? (
+                            /* Modo creación: Selector de archivos */
+                            <div className="space-y-2">
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    multiple
+                                    onChange={(e) => handleImagenesGeneralesSeleccionadas(e.target.files)}
+                                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 cursor-pointer"
+                                />
+                                
+                                {imagenesGenerales.length > 0 && (
+                                    <div className="grid grid-cols-6 gap-1.5 mt-2">
+                                        {imagenesGenerales.map((img, index) => (
+                                            <div key={index} className="relative group">
+                                                <img
+                                                    src={img.preview}
+                                                    alt={`Preview ${index + 1}`}
+                                                    className="w-full h-16 object-cover rounded border border-gray-200"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleEliminarImagenPendiente('general', index)}
+                                                    className="absolute top-0.5 right-0.5 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                                                >
+                                                    ×
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                
+                                {imagenesGenerales.length > 0 && (
+                                    <p className="text-xs text-gray-500">
+                                        {imagenesGenerales.length} imagen(es) seleccionada(s). Se subirán al guardar el packing.
+                                    </p>
+                                )}
+                            </div>
+                        ) : (
+                            /* Modo edición: Mostrar imágenes actuales y permitir agregar/eliminar (pendiente) */
+                            <div className="space-y-3 bg-gray-50 p-3 rounded border border-gray-200">
+                                {/* Mostrar imágenes actuales */}
+                                <ImageGallery
+                                    key={`general-${refreshGallery}`}
+                                    packingSemanalId={packing.id}
+                                    soloGenerales={true}
+                                    allowDelete={true}
+                                    compact={true}
+                                    imagenesAOcultar={imagenesAEliminar}
+                                    onImagenEliminada={handleMarcarImagenParaEliminar}
+                                />
+                                
+                                {/* Input para agregar nuevas imágenes */}
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                                        Agregar imágenes generales
+                                    </label>
+                                    <input
+                                        type="file"
+                                        multiple
+                                        accept="image/*"
+                                        onChange={(e) => handleAgregarImagenesEdit(e.target.files, null)}
+                                        className="text-xs"
+                                    />
+                                    {imagenesASubir.generales.length > 0 && (
+                                        <div className="mt-1 text-xs text-green-600">
+                                            ✓ {imagenesASubir.generales.length} imagen(es) nueva(s) pendiente(s)
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -476,6 +734,101 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
                                     ))}
                                 </tbody>
                             </table>
+
+                            {/* Sección de imágenes por tipo */}
+                            <div className="bg-gray-50 px-4 py-3 border-t border-gray-200">
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-xs font-medium text-gray-700">
+                                        📸 Imágenes de {tipo.tipo_fruta_nombre}
+                                    </span>
+                                </div>
+                                
+                                {mode === 'create' ? (
+                                    /* Modo creación: Selector de archivos */
+                                    <div className="space-y-2">
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            multiple
+                                            onChange={(e) => handleImagenesTipoSeleccionadas(tipo.tipo_fruta, e.target.files)}
+                                            className="block w-full text-sm text-gray-500 file:mr-4 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 cursor-pointer"
+                                        />
+                                        
+                                        {(imagenesPorTipo[tipo.tipo_fruta] || []).length > 0 && (
+                                            <div className="grid grid-cols-6 gap-1.5">
+                                                {(imagenesPorTipo[tipo.tipo_fruta] || []).map((img, index) => (
+                                                    <div key={index} className="relative group">
+                                                        <img
+                                                            src={img.preview}
+                                                            alt={`Preview ${index + 1}`}
+                                                            className="w-full h-16 object-cover rounded border border-gray-200"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleEliminarImagenPendiente(tipo.tipo_fruta, index)}
+                                                            className="absolute top-0.5 right-0.5 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                                                        >
+                                                            ×
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                        
+                                        {(imagenesPorTipo[tipo.tipo_fruta] || []).length > 0 && (
+                                            <p className="text-xs text-gray-500">
+                                                {(imagenesPorTipo[tipo.tipo_fruta] || []).length} imagen(es) seleccionada(s)
+                                            </p>
+                                        )}
+                                    </div>
+                                ) : (
+                                    /* Modo edición: Mostrar imágenes y permitir cambios pendientes */
+                                    (() => {
+                                        const tipoEnBD = packing.tipos?.find(t => t.tipo_fruta === tipo.tipo_fruta);
+                                        const tipoExiste = tipoEnBD?.id;
+                                        
+                                        return (
+                                            <div className="space-y-3">
+                                                {tipoExiste ? (
+                                                    <>
+                                                        <ImageGallery
+                                                            key={`tipo-${tipo.tipo_fruta}-${refreshGallery}`}
+                                                            packingSemanalId={packing.id}
+                                                            packingTipoId={tipoEnBD.id}
+                                                            allowDelete={true}
+                                                            compact={true}
+                                                            imagenesAOcultar={imagenesAEliminar}
+                                                            onImagenEliminada={handleMarcarImagenParaEliminar}
+                                                        />
+                                                        
+                                                        <div>
+                                                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                                                                Agregar imágenes a {tipo.tipo_fruta_nombre}
+                                                            </label>
+                                                            <input
+                                                                type="file"
+                                                                multiple
+                                                                accept="image/*"
+                                                                onChange={(e) => handleAgregarImagenesEdit(e.target.files, tipo.tipo_fruta)}
+                                                                className="text-xs"
+                                                            />
+                                                            {(imagenesASubir.tipos[tipo.tipo_fruta]?.length || 0) > 0 && (
+                                                                <div className="mt-1 text-xs text-green-600">
+                                                                    ✓ {imagenesASubir.tipos[tipo.tipo_fruta].length} imagen(es) nueva(s) pendiente(s)
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </>
+                                                ) : (
+                                                    <div className="text-xs text-gray-500 italic bg-blue-50 p-2 rounded border border-blue-200">
+                                                        💡 Guarda el packing primero para poder agregar imágenes a este tipo de fruta
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })()
+                                )}
+                            </div>
                         </div>
                     ))}
 

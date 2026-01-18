@@ -10,6 +10,7 @@ from .views import (
     TipoFrutaViewSet,
     PackingSemanalViewSet,
     PackingTipoViewSet,
+    PackingImagenViewSet,
 )
 
 # Crear el router
@@ -18,6 +19,7 @@ router.register(r'empresas', EmpresaViewSet, basename='empresa')
 router.register(r'tipos-fruta', TipoFrutaViewSet, basename='tipo-fruta')
 router.register(r'packing-semanal', PackingSemanalViewSet, basename='packing-semanal')
 router.register(r'packing-tipos', PackingTipoViewSet, basename='packing-tipo')
+router.register(r'imagenes', PackingImagenViewSet, basename='packing-imagen')
 
 urlpatterns = [
     path('', include(router.urls)),

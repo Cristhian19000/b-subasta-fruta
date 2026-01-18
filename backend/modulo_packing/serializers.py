@@ -5,11 +5,12 @@ Estructura jerárquica:
 - PackingSemanal (cabecera principal)
   - PackingTipo (por tipo de fruta)
     - PackingDetalle (por día)
+  - PackingImagen (imágenes opcionales)
 """
 
 from rest_framework import serializers
 from django.db import transaction
-from .models import Empresa, TipoFruta, PackingSemanal, PackingTipo, PackingDetalle
+from .models import Empresa, TipoFruta, PackingSemanal, PackingTipo, PackingDetalle, PackingImagen
 
 
 # =============================================================================
@@ -35,6 +36,31 @@ class TipoFrutaSerializer(serializers.ModelSerializer):
 
 
 # =============================================================================
+# SERIALIZER PARA IMÁGENES
+# =============================================================================
+
+class PackingImagenSerializer(serializers.ModelSerializer):
+    """Serializer para imágenes de packing."""
+    
+    imagen_url = serializers.SerializerMethodField()
+    tipo_fruta_nombre = serializers.CharField(source='packing_tipo.tipo_fruta.nombre', read_only=True)
+    
+    class Meta:
+        model = PackingImagen
+        fields = ['id', 'packing_semanal', 'imagen', 'imagen_url', 'descripcion', 'packing_tipo', 'tipo_fruta_nombre', 'fecha_subida']
+        read_only_fields = ['id', 'fecha_subida']
+    
+    def get_imagen_url(self, obj):
+        """Obtener URL completa de la imagen."""
+        if obj.imagen:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.imagen.url)
+            return obj.imagen.url
+        return None
+
+
+# =============================================================================
 # SERIALIZERS DE DETALLE (para lectura)
 # =============================================================================
 
@@ -54,11 +80,12 @@ class PackingTipoSerializer(serializers.ModelSerializer):
     
     tipo_fruta_nombre = serializers.CharField(source='tipo_fruta.nombre', read_only=True)
     detalles = PackingDetalleSerializer(many=True, read_only=True)
+    imagenes = PackingImagenSerializer(many=True, read_only=True)
     estado_display = serializers.CharField(source='get_estado_display', read_only=True)
     
     class Meta:
         model = PackingTipo
-        fields = ['id', 'tipo_fruta', 'tipo_fruta_nombre', 'kg_total', 'estado', 'estado_display', 'detalles']
+        fields = ['id', 'tipo_fruta', 'tipo_fruta_nombre', 'kg_total', 'estado', 'estado_display', 'detalles', 'imagenes']
         read_only_fields = ['id', 'kg_total']
 
 
@@ -102,6 +129,7 @@ class PackingSemanalDetailSerializer(serializers.ModelSerializer):
     
     empresa_nombre = serializers.CharField(source='empresa.nombre', read_only=True)
     tipos = PackingTipoSerializer(many=True, read_only=True)
+    imagenes = PackingImagenSerializer(many=True, read_only=True)
     estado_display = serializers.CharField(source='get_estado_display', read_only=True)
     total_kg = serializers.DecimalField(source='kg_total', max_digits=12, decimal_places=2, read_only=True)
     
@@ -118,6 +146,7 @@ class PackingSemanalDetailSerializer(serializers.ModelSerializer):
             'estado_display',
             'observaciones',
             'tipos',
+            'imagenes',
             'fecha_registro',
             'fecha_actualizacion',
         ]
@@ -209,7 +238,7 @@ class PackingSemanalCreateSerializer(serializers.Serializer):
         return packing_semanal
     
     def update(self, instance, validated_data):
-        """Actualizar el packing semanal reemplazando tipos y detalles."""
+        """Actualizar el packing semanal reemplazando tipos y detalles, preservando imágenes."""
         tipos_data = validated_data.pop('tipos')
         
         with transaction.atomic(): # Si algo falla, no se borra nada
@@ -221,23 +250,44 @@ class PackingSemanalCreateSerializer(serializers.Serializer):
             instance.estado = validated_data.get('estado', instance.estado)
             instance.save()
             
-            # Eliminar y recrear
+            # Guardar mapeo de imágenes por tipo de fruta (antes de eliminar)
+            imagenes_por_tipo = {}
+            for tipo_existente in instance.tipos.all():
+                tipo_fruta_id = tipo_existente.tipo_fruta.id
+                # Obtener todas las imágenes de este tipo
+                imagenes = list(tipo_existente.imagenes.all())
+                if imagenes:
+                    imagenes_por_tipo[tipo_fruta_id] = imagenes
+            
+            # Eliminar tipos (esto NO eliminará las imágenes porque las reasignaremos)
+            # Primero desvinculamos las imágenes
+            PackingImagen.objects.filter(packing_tipo__packing_semanal=instance).update(packing_tipo=None)
+            
+            # Ahora sí eliminamos los tipos
             instance.tipos.all().delete()
             
+            # Recrear tipos y reasignar imágenes
             for tipo_data in tipos_data:
                 detalles_data = tipo_data.pop('detalles')
+                tipo_fruta = tipo_data['tipo_fruta']
+                
                 packing_tipo = PackingTipo.objects.create(
                     packing_semanal=instance,
-                    tipo_fruta=tipo_data['tipo_fruta']
+                    tipo_fruta=tipo_fruta
                 )
                 
                 for detalle_data in detalles_data:
-                    # detalle_data ahora solo contiene 'dia', 'fecha' y 'py'
                     PackingDetalle.objects.create(
                         packing_tipo=packing_tipo,
                         **detalle_data
                     )
                 
                 packing_tipo.actualizar_kg_total()
+                
+                # Reasignar imágenes que tenía este tipo de fruta
+                if tipo_fruta.id in imagenes_por_tipo:
+                    for imagen in imagenes_por_tipo[tipo_fruta.id]:
+                        imagen.packing_tipo = packing_tipo
+                        imagen.save()
                 
         return instance

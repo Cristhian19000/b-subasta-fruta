@@ -2,10 +2,11 @@
  * Componente para mostrar el detalle de un Packing Semanal.
  * 
  * Muestra la información completa del packing incluyendo
- * todos los tipos de fruta con su producción diaria.
+ * todos los tipos de fruta con su producción diaria e imágenes.
  */
 
 import { Button, Badge } from '../../components/common';
+import { ImageGallery } from '../../components/packing';
 
 // Configuración de colores para estados
 const ESTADO_COLORS = {
@@ -100,6 +101,20 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
                 </div>
             </div>
 
+            {/* Imágenes Generales */}
+            {packing.imagenes && packing.imagenes.length > 0 && (
+                <div className="bg-gray-50 p-4 rounded-lg">
+                    <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
+                        📸 Imágenes Generales
+                    </h3>
+                    <ImageGallery
+                        packingSemanalId={packing.id}
+                        soloGenerales={true}
+                        allowDelete={false}
+                    />
+                </div>
+            )}
+
             {/* Tipos de Fruta */}
             <div>
                 <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
@@ -155,6 +170,21 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
                                 ) : (
                                     <div className="px-4 py-3 text-sm text-gray-500">
                                         Sin detalles registrados
+                                    </div>
+                                )}
+
+                                {/* Imágenes del tipo de fruta */}
+                                {tipo.imagenes && tipo.imagenes.length > 0 && (
+                                    <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
+                                        <p className="text-xs font-medium text-gray-600 mb-2">
+                                            📸 Imágenes de {tipo.tipo_fruta_nombre}
+                                        </p>
+                                        <ImageGallery
+                                            packingSemanalId={packing.id}
+                                            packingTipoId={tipo.id}
+                                            allowDelete={false}
+                                            compact={true}
+                                        />
                                     </div>
                                 )}
                             </div>

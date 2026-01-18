@@ -3,7 +3,7 @@ Admin para el Módulo de Packing.
 """
 
 from django.contrib import admin
-from .models import Empresa, TipoFruta, PackingSemanal, PackingTipo, PackingDetalle
+from .models import Empresa, TipoFruta, PackingSemanal, PackingTipo, PackingDetalle, PackingImagen
 
 
 @admin.register(Empresa)
@@ -126,4 +126,49 @@ class PackingDetalleAdmin(admin.ModelAdmin):
         return obj.packing_tipo.tipo_fruta.nombre
     get_tipo_fruta.short_description = 'Tipo Fruta'
     get_tipo_fruta.admin_order_field = 'packing_tipo__tipo_fruta__nombre'
+
+
+@admin.register(PackingImagen)
+class PackingImagenAdmin(admin.ModelAdmin):
+    """Admin para PackingImagen."""
+    
+    list_display = ['id', 'get_empresa', 'get_tipo_fruta', 'descripcion', 'fecha_subida']
+    list_filter = ['fecha_subida', 'packing_semanal__empresa']
+    search_fields = ['descripcion', 'packing_semanal__empresa__nombre']
+    readonly_fields = ['fecha_subida', 'imagen_preview']
+    ordering = ['-fecha_subida']
+    
+    fieldsets = (
+        ('Información Principal', {
+            'fields': ('packing_semanal', 'packing_tipo', 'descripcion')
+        }),
+        ('Imagen', {
+            'fields': ('imagen', 'imagen_preview')
+        }),
+        ('Fechas', {
+            'fields': ('fecha_subida',),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def get_empresa(self, obj):
+        """Obtener nombre de empresa."""
+        return obj.packing_semanal.empresa.nombre
+    get_empresa.short_description = 'Empresa'
+    get_empresa.admin_order_field = 'packing_semanal__empresa__nombre'
+    
+    def get_tipo_fruta(self, obj):
+        """Obtener nombre del tipo de fruta (si existe)."""
+        if obj.packing_tipo:
+            return obj.packing_tipo.tipo_fruta.nombre
+        return '(General)'
+    get_tipo_fruta.short_description = 'Tipo Fruta'
+    
+    def imagen_preview(self, obj):
+        """Vista previa de la imagen."""
+        if obj.imagen:
+            from django.utils.html import format_html
+            return format_html('<img src="{}" style="max-height: 200px;" />', obj.imagen.url)
+        return 'Sin imagen'
+    imagen_preview.short_description = 'Vista previa'
 
