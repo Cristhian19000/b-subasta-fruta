@@ -90,8 +90,10 @@ CORS_ALLOW_CREDENTIALS = True
 # =============================================================================
 REST_FRAMEWORK = {
     # Clases de autenticación por defecto
+    # Se prueban en orden: primero Clientes (app móvil), luego Administradores (web)
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'clientes.authentication.ClienteJWTAuthentication',  # Para tokens de Clientes
+        'rest_framework_simplejwt.authentication.JWTAuthentication',  # Para tokens de Admins
     ],
     # Clases de permisos por defecto
     'DEFAULT_PERMISSION_CLASSES': [

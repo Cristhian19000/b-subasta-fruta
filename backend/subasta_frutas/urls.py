@@ -19,6 +19,7 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from core.views import get_server_time
+from rest_framework_simplejwt.views import TokenRefreshView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -28,6 +29,8 @@ urlpatterns = [
     path('api/', include('subastas.urls')),        # Rutas del módulo subastas
     path('api/time/', get_server_time),
     
+    # JWT Token Refresh - Para renovar tokens expirados desde la app móvil
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]
 
 # Servir archivos media en desarrollo

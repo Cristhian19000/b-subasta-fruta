@@ -9,6 +9,8 @@ además de acciones personalizadas para confirmar correo y cambiar estados.
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.tokens import RefreshToken
 from .models import Cliente
 from .serializers import ClienteSerializer, ClienteListSerializer, ClienteLoginSerializer
 
@@ -223,21 +225,93 @@ class ClienteViewSet(viewsets.ModelViewSet):
         
         Ruta: POST /api/clientes/login-movil/
         Body: { "ruc_dni": "12345678", "password": "..." }
+        
+        Retorna:
+            - message: Mensaje de éxito
+            - token: JWT access token
+            - refresh_token: JWT refresh token para renovar el access token
+            - cliente: Datos del cliente autenticado
         """
         serializer = ClienteLoginSerializer(data=request.data)
         
         if serializer.is_valid():
             cliente = serializer.validated_data['cliente']
-            # Aquí devolvemos la información del cliente. 
-            # Si usas JWT, aquí deberías generar y devolver el token.
+            
+            # Generar tokens JWT para el cliente
+            # Usamos el ID del cliente como identificador en el token
+            refresh = RefreshToken()
+            refresh['cliente_id'] = cliente.id
+            refresh['ruc_dni'] = cliente.ruc_dni
+            
             return Response({
                 'message': 'Login exitoso',
+                'token': str(refresh.access_token),
+                'refresh_token': str(refresh),
                 'cliente': {
                     'id': cliente.id,
                     'ruc_dni': cliente.ruc_dni,
                     'nombre': cliente.nombre_razon_social,
-                    'sede': cliente.sede
+                    'nombre_razon_social': cliente.nombre_razon_social,
+                    'sede': cliente.sede,
+                    'contacto_1': cliente.contacto_1,
+                    'cargo_1': cliente.cargo_1,
+                    'numero_1': cliente.numero_1,
+                    'correo_electronico_1': cliente.correo_electronico_1,
+                    'contacto_2': cliente.contacto_2,
+                    'cargo_2': cliente.cargo_2,
+                    'numero_2': cliente.numero_2,
+                    'correo_electronico_2': cliente.correo_electronico_2,
                 }
             }, status=status.HTTP_200_OK)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['get'], url_path='perfil')
+    def perfil(self, request):
+        """
+        Obtiene el perfil del cliente autenticado.
+        
+        Ruta: GET /api/clientes/perfil/
+        Headers: Authorization: Bearer <token>
+        
+        Retorna los datos del cliente basándose en el cliente_id del token JWT.
+        """
+        # Obtener el cliente_id del token JWT
+        cliente_id = request.auth.get('cliente_id') if request.auth else None
+        
+        if not cliente_id:
+            return Response(
+                {'error': 'Token inválido o no proporcionado'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        try:
+            cliente = Cliente.objects.get(id=cliente_id)
+        except Cliente.DoesNotExist:
+            return Response(
+                {'error': 'Cliente no encontrado'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Verificar que el cliente sigue habilitado
+        if cliente.estado != 'habilitado':
+            return Response(
+                {'error': 'Esta cuenta está deshabilitada'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        return Response({
+            'id': cliente.id,
+            'ruc_dni': cliente.ruc_dni,
+            'nombre': cliente.nombre_razon_social,
+            'nombre_razon_social': cliente.nombre_razon_social,
+            'sede': cliente.sede,
+            'contacto_1': cliente.contacto_1,
+            'cargo_1': cliente.cargo_1,
+            'numero_1': cliente.numero_1,
+            'correo_electronico_1': cliente.correo_electronico_1,
+            'contacto_2': cliente.contacto_2,
+            'cargo_2': cliente.cargo_2,
+            'numero_2': cliente.numero_2,
+            'correo_electronico_2': cliente.correo_electronico_2,
+        }, status=status.HTTP_200_OK)
