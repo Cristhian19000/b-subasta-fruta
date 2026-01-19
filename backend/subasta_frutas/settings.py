@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     'clientes',                     # Módulo de gestión de clientes
     'usuarios',                     # Módulo de gestión de usuarios
     'modulo_packing',               # Módulo de packing (proyecciones semanales)
+    'subastas',                     # Módulo de subastas digitales
     'core',
 ]
 
@@ -167,9 +168,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'es-pe'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'America/Lima'
 
 USE_I18N = True
 

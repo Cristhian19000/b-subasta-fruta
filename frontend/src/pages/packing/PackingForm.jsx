@@ -462,7 +462,7 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
             {/* ============================================= */}
             <div className="bg-gray-50 p-4 rounded-lg">
                 <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4">
-                    📋 Datos del Packing Semanal
+                    Datos del Packing Semanal
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div>
@@ -551,7 +551,7 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
                     {/* Sección de imágenes generales */}
                     <div className="md:col-span-2 lg:col-span-4">
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                            📸 Imágenes Generales de la Semana (opcional)
+                            Imágenes Generales de la Semana (opcional)
                         </label>
                         
                         {mode === 'create' ? (
@@ -671,7 +671,7 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
             {tipos.length > 0 && (
                 <div className="space-y-4">
                     <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
-                        📊 Producción por Tipo de Fruta
+                        Producción por Tipo de Fruta
                     </h3>
 
                     {tipos.map((tipo) => (
@@ -739,7 +739,7 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
                             <div className="bg-gray-50 px-4 py-3 border-t border-gray-200">
                                 <div className="flex items-center justify-between mb-2">
                                     <span className="text-xs font-medium text-gray-700">
-                                        📸 Imágenes de {tipo.tipo_fruta_nombre}
+                                        Imágenes de {tipo.tipo_fruta_nombre}
                                     </span>
                                 </div>
                                 
@@ -821,7 +821,7 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
                                                     </>
                                                 ) : (
                                                     <div className="text-xs text-gray-500 italic bg-blue-50 p-2 rounded border border-blue-200">
-                                                        💡 Guarda el packing primero para poder agregar imágenes a este tipo de fruta
+                                                        Guarda el packing primero para poder agregar imágenes a este tipo de fruta
                                                     </div>
                                                 )}
                                             </div>

@@ -25,6 +25,7 @@ urlpatterns = [
     path('api/', include('clientes.urls')),
     path('api/', include('usuarios.urls')),
     path('api/', include('modulo_packing.urls')),  # Rutas del módulo packing
+    path('api/', include('subastas.urls')),        # Rutas del módulo subastas
     path('api/time/', get_server_time),
     
 ]

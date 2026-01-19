@@ -13,6 +13,7 @@ import { Home } from './pages/home';
 import { Clientes } from './pages/clientes';
 import { Usuarios } from './pages/usuarios';
 import { Packing, Empresas, TiposFruta } from './pages/packing';
+import { Subastas } from './pages/subastas';
 import './index.css';
 
 function App() {
@@ -37,6 +38,9 @@ function App() {
                         
                         {/* Módulo de packing (todos) */}
                         <Route path="packing" element={<Packing />} />
+                        
+                        {/* Módulo de subastas (todos) */}
+                        <Route path="subastas" element={<Subastas />} />
                         
                         {/* Catálogos de packing (solo admin) */}
                         <Route path="empresas" element={
