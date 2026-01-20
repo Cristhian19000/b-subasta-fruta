@@ -238,7 +238,7 @@ class PackingSemanalCreateSerializer(serializers.Serializer):
         return packing_semanal
     
     def update(self, instance, validated_data):
-        """Actualizar el packing semanal reemplazando tipos y detalles, preservando imágenes."""
+        """Actualizar el packing semanal preservando detalles con subastas activas."""
         tipos_data = validated_data.pop('tipos')
         
         with transaction.atomic(): # Si algo falla, no se borra nada
@@ -250,37 +250,83 @@ class PackingSemanalCreateSerializer(serializers.Serializer):
             instance.estado = validated_data.get('estado', instance.estado)
             instance.save()
             
-            # Guardar mapeo de imágenes por tipo de fruta (antes de eliminar)
+            # Guardar mapeo de imágenes y detalles por tipo de fruta
             imagenes_por_tipo = {}
+            detalles_existentes_por_tipo_y_dia = {}
+            
             for tipo_existente in instance.tipos.all():
                 tipo_fruta_id = tipo_existente.tipo_fruta.id
-                # Obtener todas las imágenes de este tipo
+                
+                # Guardar imágenes
                 imagenes = list(tipo_existente.imagenes.all())
                 if imagenes:
                     imagenes_por_tipo[tipo_fruta_id] = imagenes
+                
+                # Guardar detalles existentes por día
+                if tipo_fruta_id not in detalles_existentes_por_tipo_y_dia:
+                    detalles_existentes_por_tipo_y_dia[tipo_fruta_id] = {}
+                
+                for detalle in tipo_existente.detalles.all():
+                    detalles_existentes_por_tipo_y_dia[tipo_fruta_id][detalle.dia] = detalle
             
-            # Eliminar tipos (esto NO eliminará las imágenes porque las reasignaremos)
-            # Primero desvinculamos las imágenes
+            # Desvincular imágenes antes de eliminar tipos
             PackingImagen.objects.filter(packing_tipo__packing_semanal=instance).update(packing_tipo=None)
             
-            # Ahora sí eliminamos los tipos
-            instance.tipos.all().delete()
+            # Eliminar solo los tipos que NO tienen detalles con subastas
+            # Para tipos con subastas, eliminar solo detalles sin subastas
+            for tipo_existente in instance.tipos.all():
+                detalles_con_subastas = []
+                detalles_sin_subastas = []
+                
+                for detalle in tipo_existente.detalles.all():
+                    if hasattr(detalle, 'subasta'):
+                        detalles_con_subastas.append(detalle)
+                    else:
+                        detalles_sin_subastas.append(detalle)
+                
+                # Eliminar solo detalles sin subastas
+                for detalle in detalles_sin_subastas:
+                    detalle.delete()
             
-            # Recrear tipos y reasignar imágenes
+            # Ahora eliminar tipos que quedaron sin detalles
+            for tipo_existente in instance.tipos.all():
+                if tipo_existente.detalles.count() == 0:
+                    tipo_existente.delete()
+            
+            # Recrear/actualizar tipos
             for tipo_data in tipos_data:
                 detalles_data = tipo_data.pop('detalles')
                 tipo_fruta = tipo_data['tipo_fruta']
                 
-                packing_tipo = PackingTipo.objects.create(
-                    packing_semanal=instance,
-                    tipo_fruta=tipo_fruta
-                )
+                # Buscar si ya existe un tipo para esta fruta (con detalles con subastas)
+                packing_tipo = instance.tipos.filter(tipo_fruta=tipo_fruta).first()
+                
+                if not packing_tipo:
+                    # Crear nuevo tipo si no existe
+                    packing_tipo = PackingTipo.objects.create(
+                        packing_semanal=instance,
+                        tipo_fruta=tipo_fruta
+                    )
+                
+                # Procesar detalles
+                detalles_existentes = detalles_existentes_por_tipo_y_dia.get(tipo_fruta.id, {})
                 
                 for detalle_data in detalles_data:
-                    PackingDetalle.objects.create(
-                        packing_tipo=packing_tipo,
-                        **detalle_data
-                    )
+                    dia = detalle_data['dia']
+                    
+                    # Si existe un detalle para este día y tiene subasta, actualizarlo
+                    detalle_existente = detalles_existentes.get(dia)
+                    if detalle_existente and hasattr(detalle_existente, 'subasta'):
+                        # Actualizar el detalle existente en lugar de crear uno nuevo
+                        detalle_existente.fecha = detalle_data['fecha']
+                        detalle_existente.py = detalle_data['py']
+                        detalle_existente.save()
+                    else:
+                        # Crear nuevo detalle si no existe o no tiene subasta
+                        PackingDetalle.objects.create(
+                            packing_tipo=packing_tipo,
+                            **detalle_data
+                        )
                 
                 packing_tipo.actualizar_kg_total()
                 

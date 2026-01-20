@@ -29,7 +29,7 @@ class Subasta(models.Model):
     # Relación con la producción diaria (PackingDetalle)
     packing_detalle = models.OneToOneField(
         'modulo_packing.PackingDetalle',
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name='subasta',
         verbose_name="Producción Diaria"
     )
