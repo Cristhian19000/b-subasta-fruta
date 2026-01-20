@@ -31,7 +31,7 @@ const ESTADOS = [
     { value: 'ANULADO', label: 'Anulado' },
 ];
 
-const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel, mode, errorServidor  }) => {
+const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel, mode, errorServidor }) => {
     // Estado para la cabecera
     const [cabecera, setCabecera] = useState({
         empresa: '',
@@ -69,18 +69,30 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
                 estado: packing.estado,
                 observaciones: packing.observaciones || '',
             });
-            
+
             // Cargar tipos y sus detalles
             if (packing.tipos && packing.tipos.length > 0) {
-                const tiposFormateados = packing.tipos.map(tipo => ({
-                    tipo_fruta: tipo.tipo_fruta,
-                    tipo_fruta_nombre: tipo.tipo_fruta_nombre,
-                    detalles: tipo.detalles.map(d => ({
-                        dia: d.dia,
-                        fecha: d.fecha,
-                        py: d.py || 0,
-                    })),
-                }));
+                const tiposFormateados = packing.tipos.map(tipo => {
+                    // Generar todos los días de la semana (Lun-Sáb)
+                    const todosLosDias = DIAS_SEMANA.map((diaInfo, index) => {
+                        const fechaDia = calculateDate(packing.fecha_inicio_semana, index);
+
+                        // Buscar si este día ya tiene producción guardada
+                        const detalleExistente = tipo.detalles.find(d => d.dia === diaInfo.value);
+
+                        return {
+                            dia: diaInfo.value,
+                            fecha: fechaDia,
+                            py: detalleExistente ? detalleExistente.py : 0,  // PY existente o 0
+                        };
+                    });
+
+                    return {
+                        tipo_fruta: tipo.tipo_fruta,
+                        tipo_fruta_nombre: tipo.tipo_fruta_nombre,
+                        detalles: todosLosDias,  // Ahora incluye todos los días
+                    };
+                });
                 setTipos(tiposFormateados);
             }
         } else {
@@ -118,7 +130,7 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
     // Maneja cambios en la cabecera
     const handleCabeceraChange = (e) => {
         const { name, value } = e.target;
-        
+
         if (name === 'fecha_inicio_semana' && value) {
             // Calcular automáticamente la fecha fin (sábado)
             const fechaFin = calculateDate(value, 5);
@@ -127,7 +139,7 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
                 fecha_inicio_semana: value,
                 fecha_fin_semana: fechaFin,
             }));
-            
+
             // Recalcular fechas de todos los detalles
             setTipos(prev => prev.map(tipo => ({
                 ...tipo,
@@ -147,7 +159,7 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
     // Agrega un nuevo tipo de fruta
     const handleAddTipo = () => {
         if (!tipoSeleccionado) return;
-        
+
         // Verificar si ya existe
         const yaExiste = tipos.some(t => t.tipo_fruta === parseInt(tipoSeleccionado));
         if (yaExiste) {
@@ -244,11 +256,11 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
     // Valida el formulario
     const validate = () => {
         const newErrors = {};
-        
+
         if (!cabecera.empresa) newErrors.empresa = 'La empresa es requerida';
         if (!cabecera.fecha_inicio_semana) newErrors.fecha_inicio_semana = 'La fecha de inicio es requerida';
         if (!cabecera.fecha_fin_semana) newErrors.fecha_fin_semana = 'La fecha de fin es requerida';
-        
+
         if (tipos.length === 0) {
             newErrors.tipos = 'Debe agregar al menos un tipo de fruta';
         }
@@ -259,7 +271,7 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        
+
         if (!validate()) return;
 
         const data = {
@@ -270,30 +282,32 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
             observaciones: cabecera.observaciones,
             tipos: tipos.map(tipo => ({
                 tipo_fruta: tipo.tipo_fruta,
-                detalles: tipo.detalles.map(d => ({
-                    dia: d.dia,
-                    fecha: d.fecha,
-                    py: parseFloat(d.py) || 0 
-                })),
-            })),
+                detalles: tipo.detalles
+                    .filter(d => parseFloat(d.py) > 0)  // Solo enviar días con producción
+                    .map(d => ({
+                        dia: d.dia,
+                        fecha: d.fecha,
+                        py: parseFloat(d.py) || 0
+                    })),
+            })).filter(tipo => tipo.detalles.length > 0),  // Solo tipos con al menos un día productivo
         };
 
         console.log("Enviando datos:", data);
-        
+
         try {
             // Guardar el packing
             const packingCreado = await onSave(data);
-            
+
             // Aplicar cambios de imágenes (crear o editar)
             await aplicarCambiosImagenes(packingCreado);
-            
+
             // Si todo salió bien, cerrar el modal automáticamente
             onCancel();
         } catch (error) {
             console.error('Error completo:', error);
             console.error('Response data:', error.response?.data);
-            const errorMsg = error.response?.data 
-                ? JSON.stringify(error.response.data, null, 2) 
+            const errorMsg = error.response?.data
+                ? JSON.stringify(error.response.data, null, 2)
                 : error.message;
             alert('Error al guardar el packing:\n' + errorMsg);
         }
@@ -303,7 +317,7 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
     const aplicarCambiosImagenes = async (packingGuardado) => {
         try {
             console.log('Aplicando cambios de imágenes...', packingGuardado);
-            
+
             // 1. Eliminar imágenes marcadas
             if (imagenesAEliminar.length > 0) {
                 console.log(`Eliminando ${imagenesAEliminar.length} imágenes`);
@@ -324,7 +338,7 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
             if (packingGuardado.tipos && packingGuardado.tipos.length > 0) {
                 for (const tipoEnBD of packingGuardado.tipos) {
                     const imagenesDelTipo = imagenesASubir.tipos[tipoEnBD.tipo_fruta] || [];
-                    
+
                     if (imagenesDelTipo.length > 0) {
                         console.log(`Subiendo ${imagenesDelTipo.length} imágenes para tipo ${tipoEnBD.tipo_fruta_nombre}`);
                         for (const imagenData of imagenesDelTipo) {
@@ -348,7 +362,7 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
                 if (packingGuardado.tipos) {
                     for (const tipoEnBD of packingGuardado.tipos) {
                         const imagenesDelTipo = imagenesPorTipo[tipoEnBD.tipo_fruta] || [];
-                        
+
                         if (imagenesDelTipo.length > 0) {
                             console.log(`Subiendo ${imagenesDelTipo.length} imágenes para tipo ${tipoEnBD.tipo_fruta_nombre} (create)`);
                             for (const imagenData of imagenesDelTipo) {
@@ -358,7 +372,7 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
                     }
                 }
             }
-            
+
             console.log('Todos los cambios de imágenes aplicados correctamente');
         } catch (error) {
             console.error('Error al aplicar cambios de imágenes:', error);
@@ -367,7 +381,7 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
     };
 
     // === MANEJADORES DE IMÁGENES MODO CREATE ===
-    
+
     // Manejar selección de imágenes generales (modo creación)
     const handleImagenesGeneralesSeleccionadas = (files) => {
         const nuevasImagenes = Array.from(files).map(file => ({
@@ -411,7 +425,7 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
     };
 
     // === MANEJADORES DE IMÁGENES MODO EDIT ===
-    
+
     // Cuando se sube una imagen en edit, agregar a pendientes
     const handleImagenSubida = (esGeneral, tipoFrutaId = null) => {
         // Esto es un placeholder para indicar que hubo cambios
@@ -473,9 +487,8 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
                             name="empresa"
                             value={cabecera.empresa}
                             onChange={handleCabeceraChange}
-                            className={`w-full px-3 py-2 border rounded-md text-sm cursor-pointer focus:outline-none focus:ring-1 focus:ring-gray-900 ${
-                                errors.empresa ? 'border-red-300' : 'border-gray-300'
-                            }`}
+                            className={`w-full px-3 py-2 border rounded-md text-sm cursor-pointer focus:outline-none focus:ring-1 focus:ring-gray-900 ${errors.empresa ? 'border-red-300' : 'border-gray-300'
+                                }`}
                         >
                             <option value="">Seleccione una empresa</option>
                             {empresas.map((e) => (
@@ -496,9 +509,8 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
                             name="fecha_inicio_semana"
                             value={cabecera.fecha_inicio_semana}
                             onChange={handleCabeceraChange}
-                            className={`w-full px-3 py-2 border rounded-md text-sm cursor-pointer focus:outline-none focus:ring-1 focus:ring-gray-900 ${
-                                errors.fecha_inicio_semana ? 'border-red-300' : 'border-gray-300'
-                            }`}
+                            className={`w-full px-3 py-2 border rounded-md text-sm cursor-pointer focus:outline-none focus:ring-1 focus:ring-gray-900 ${errors.fecha_inicio_semana ? 'border-red-300' : 'border-gray-300'
+                                }`}
                         />
                         {errors.fecha_inicio_semana && (
                             <p className="mt-1 text-xs text-red-600">{errors.fecha_inicio_semana}</p>
@@ -553,7 +565,7 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                             Imágenes Generales de la Semana (opcional)
                         </label>
-                        
+
                         {mode === 'create' ? (
                             /* Modo creación: Selector de archivos */
                             <div className="space-y-2">
@@ -564,7 +576,7 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
                                     onChange={(e) => handleImagenesGeneralesSeleccionadas(e.target.files)}
                                     className="block w-full text-sm text-gray-500 file:mr-4 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 cursor-pointer"
                                 />
-                                
+
                                 {imagenesGenerales.length > 0 && (
                                     <div className="grid grid-cols-6 gap-1.5 mt-2">
                                         {imagenesGenerales.map((img, index) => (
@@ -585,7 +597,7 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
                                         ))}
                                     </div>
                                 )}
-                                
+
                                 {imagenesGenerales.length > 0 && (
                                     <p className="text-xs text-gray-500">
                                         {imagenesGenerales.length} imagen(es) seleccionada(s). Se subirán al guardar el packing.
@@ -605,7 +617,7 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
                                     imagenesAOcultar={imagenesAEliminar}
                                     onImagenEliminada={handleMarcarImagenParaEliminar}
                                 />
-                                
+
                                 {/* Input para agregar nuevas imágenes */}
                                 <div>
                                     <label className="block text-xs font-medium text-gray-700 mb-1">
@@ -651,8 +663,8 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
                         </select>
                     </div>
                     <div className="flex items-end">
-                        <Button 
-                            type="button" 
+                        <Button
+                            type="button"
                             onClick={handleAddTipo}
                             disabled={!tipoSeleccionado}
                         >
@@ -742,7 +754,7 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
                                         Imágenes de {tipo.tipo_fruta_nombre}
                                     </span>
                                 </div>
-                                
+
                                 {mode === 'create' ? (
                                     /* Modo creación: Selector de archivos */
                                     <div className="space-y-2">
@@ -753,7 +765,7 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
                                             onChange={(e) => handleImagenesTipoSeleccionadas(tipo.tipo_fruta, e.target.files)}
                                             className="block w-full text-sm text-gray-500 file:mr-4 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 cursor-pointer"
                                         />
-                                        
+
                                         {(imagenesPorTipo[tipo.tipo_fruta] || []).length > 0 && (
                                             <div className="grid grid-cols-6 gap-1.5">
                                                 {(imagenesPorTipo[tipo.tipo_fruta] || []).map((img, index) => (
@@ -774,7 +786,7 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
                                                 ))}
                                             </div>
                                         )}
-                                        
+
                                         {(imagenesPorTipo[tipo.tipo_fruta] || []).length > 0 && (
                                             <p className="text-xs text-gray-500">
                                                 {(imagenesPorTipo[tipo.tipo_fruta] || []).length} imagen(es) seleccionada(s)
@@ -786,7 +798,7 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
                                     (() => {
                                         const tipoEnBD = packing.tipos?.find(t => t.tipo_fruta === tipo.tipo_fruta);
                                         const tipoExiste = tipoEnBD?.id;
-                                        
+
                                         return (
                                             <div className="space-y-3">
                                                 {tipoExiste ? (
@@ -800,7 +812,7 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
                                                             imagenesAOcultar={imagenesAEliminar}
                                                             onImagenEliminada={handleMarcarImagenParaEliminar}
                                                         />
-                                                        
+
                                                         <div>
                                                             <label className="block text-xs font-medium text-gray-700 mb-1">
                                                                 Agregar imágenes a {tipo.tipo_fruta_nombre}
@@ -853,7 +865,7 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
                 </div>
             )}
 
-            
+
             {errorServidor && (
                 <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-md shadow-sm">
                     <div className="flex">

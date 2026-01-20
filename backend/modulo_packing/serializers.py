@@ -162,12 +162,28 @@ class PackingDetalleCreateSerializer(serializers.Serializer):
     dia = serializers.ChoiceField(choices=PackingDetalle.DIA_CHOICES)
     fecha = serializers.DateField()
     py = serializers.DecimalField(max_digits=10, decimal_places=2, default=0)
+    
+    def validate_py(self, value):
+        """Validar que py sea mayor a 0."""
+        if value <= 0:
+            raise serializers.ValidationError(
+                'La producción (PY) debe ser mayor a 0. No se deben enviar días sin producción.'
+            )
+        return value
 
 
 class PackingTipoCreateSerializer(serializers.Serializer):
     """Serializer para crear tipos de fruta con sus detalles."""
     tipo_fruta = serializers.PrimaryKeyRelatedField(queryset=TipoFruta.objects.all())
     detalles = PackingDetalleCreateSerializer(many=True)
+    
+    def validate_detalles(self, value):
+        """Validar que haya al menos un detalle con producción."""
+        if not value:
+            raise serializers.ValidationError(
+                'Cada tipo de fruta debe tener al menos un día con producción (PY > 0).'
+            )
+        return value
 
 
 class PackingSemanalCreateSerializer(serializers.Serializer):
@@ -183,6 +199,14 @@ class PackingSemanalCreateSerializer(serializers.Serializer):
     observaciones = serializers.CharField(required=False, allow_blank=True, default='')
     estado = serializers.ChoiceField(choices=PackingSemanal.ESTADO_CHOICES, default='PROYECTADO')
     tipos = PackingTipoCreateSerializer(many=True)
+    
+    def validate_tipos(self, value):
+        """Validar que haya al menos un tipo de fruta con producción."""
+        if not value:
+            raise serializers.ValidationError(
+                'Debe agregar al menos un tipo de fruta con producción.'
+            )
+        return value
     
     def validate(self, data):
         """Validar fechas y unicidad."""
