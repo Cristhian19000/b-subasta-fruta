@@ -429,16 +429,45 @@ class PujaMovilViewSet(viewsets.ViewSet):
         """
         GET /api/pujas/historial/
         Historial de pujas del cliente autenticado.
+        
+        Retorna la puja MÁS ALTA del cliente en cada subasta donde haya participado.
+        Ordenado por fecha descendente (más recientes primero).
+        Solo incluye subastas finalizadas o activas.
         """
         cliente = request.user  # Es un objeto Cliente
         
-        pujas = Oferta.objects.filter(cliente=cliente).select_related(
-            'subasta',
-            'subasta__packing_detalle',
-            'subasta__packing_detalle__packing_tipo',
-            'subasta__packing_detalle__packing_tipo__tipo_fruta',
-        ).order_by('-fecha_oferta')
+        # Obtener todas las subastas donde el cliente ha pujado
+        subastas_con_pujas = Oferta.objects.filter(
+            cliente=cliente
+        ).values_list('subasta_id', flat=True).distinct()
         
-        serializer = HistorialPujaSerializer(pujas, many=True)
+        # Para cada subasta, obtener la puja MÁS ALTA del cliente
+        pujas_maximas = []
+        for subasta_id in subastas_con_pujas:
+            puja_maxima = Oferta.objects.filter(
+                cliente=cliente,
+                subasta_id=subasta_id
+            ).select_related(
+                'subasta',
+                'subasta__packing_detalle',
+                'subasta__packing_detalle__packing_tipo',
+                'subasta__packing_detalle__packing_tipo__tipo_fruta',
+                'subasta__packing_detalle__packing_tipo__packing_semanal',
+                'subasta__packing_detalle__packing_tipo__packing_semanal__empresa',
+            ).order_by('-monto').first()
+            
+            if puja_maxima:
+                # Solo incluir si la subasta está activa o finalizada
+                estado_subasta = puja_maxima.subasta.estado_calculado
+                if estado_subasta in ['ACTIVA', 'FINALIZADA']:
+                    pujas_maximas.append(puja_maxima)
+        
+        # Ordenar por fecha de subasta descendente (más recientes primero)
+        pujas_maximas.sort(
+            key=lambda p: p.subasta.packing_detalle.fecha,
+            reverse=True
+        )
+        
+        serializer = HistorialPujaSerializer(pujas_maximas, many=True)
         return Response(serializer.data)
 

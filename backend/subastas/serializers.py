@@ -538,29 +538,94 @@ class PujaMovilSerializer(serializers.ModelSerializer):
 
 
 class HistorialPujaSerializer(serializers.ModelSerializer):
-    """Serializer para el historial de pujas del cliente."""
+    """Serializer para el historial de pujas del cliente autenticado."""
     
     subasta_id = serializers.IntegerField(source='subasta.id', read_only=True)
-    producto = serializers.SerializerMethodField()
-    fecha_hora = serializers.DateTimeField(source='fecha_oferta', read_only=True)
+    producto = serializers.CharField(source='subasta.packing_detalle.packing_tipo.tipo_fruta.nombre', read_only=True)
+    tipo = serializers.SerializerMethodField()
+    cantidad = serializers.SerializerMethodField()
+    unidad = serializers.SerializerMethodField()
+    fecha = serializers.DateField(source='subasta.packing_detalle.fecha', read_only=True)
+    hora_inicio = serializers.SerializerMethodField()
+    hora_fin = serializers.SerializerMethodField()
+    mi_puja = serializers.DecimalField(source='monto', max_digits=12, decimal_places=2, read_only=True)
+    precio_ganador = serializers.SerializerMethodField()
+    es_ganadora = serializers.BooleanField(read_only=True)
     estado = serializers.SerializerMethodField()
+    estado_subasta = serializers.SerializerMethodField()
     
     class Meta:
         model = Oferta
-        fields = ['id', 'subasta_id', 'producto', 'monto', 'fecha_hora', 'es_ganadora', 'estado']
+        fields = [
+            'id',
+            'subasta_id',
+            'producto',
+            'tipo',
+            'cantidad',
+            'unidad',
+            'fecha',
+            'hora_inicio',
+            'hora_fin',
+            'mi_puja',
+            'precio_ganador',
+            'es_ganadora',
+            'estado',
+            'estado_subasta',
+        ]
     
-    def get_producto(self, obj):
-        return "ARÁNDANO"
+    def get_tipo(self, obj):
+        """Tipo de producto - por ahora retorna vacío, se puede extender."""
+        return ""
+    
+    def get_cantidad(self, obj):
+        """Cantidad con unidad incluida (ej: '1.5 tn', '800 kg')."""
+        kilos = obj.subasta.packing_detalle.py
+        if kilos >= 1000:
+            toneladas = kilos / 1000
+            return f"{toneladas:.1f} tn"
+        return f"{kilos:.0f} kg"
+    
+    def get_unidad(self, obj):
+        """Unidad de precio (kg o tn)."""
+        kilos = obj.subasta.packing_detalle.py
+        return "tn" if kilos >= 1000 else "kg"
+    
+    def get_hora_inicio(self, obj):
+        """Hora de inicio en formato HH:MM."""
+        return obj.subasta.fecha_hora_inicio.strftime('%H:%M')
+    
+    def get_hora_fin(self, obj):
+        """Hora de fin en formato HH:MM."""
+        return obj.subasta.fecha_hora_fin.strftime('%H:%M')
+    
+    def get_precio_ganador(self, obj):
+        """Precio actual/ganador de la subasta."""
+        return float(obj.subasta.precio_actual)
     
     def get_estado(self, obj):
-        """Estado de la puja: ganadora, superada, en_curso."""
-        if obj.es_ganadora:
-            subasta_estado = obj.subasta.estado_calculado
-            if subasta_estado == 'FINALIZADA':
-                return 'ganadora'
-            return 'ganando'
+        """
+        Estado de la puja del cliente:
+        - 'ganadora': El cliente ganó la subasta (finalizada y es_ganadora=True)
+        - 'perdida': El cliente perdió la subasta (finalizada y es_ganadora=False)
+        - 'ganando': El cliente tiene la puja más alta (activa y es_ganadora=True)
+        - 'superada': El cliente fue superado (activa y es_ganadora=False)
+        """
+        estado_subasta = obj.subasta.estado_calculado
+        
+        if estado_subasta == 'FINALIZADA':
+            return 'ganadora' if obj.es_ganadora else 'perdida'
+        elif estado_subasta == 'ACTIVA':
+            return 'ganando' if obj.es_ganadora else 'superada'
         else:
-            # Verificar si la subasta sigue activa
-            if obj.subasta.esta_activa:
-                return 'superada'
-            return 'perdida'
+            # PROGRAMADA o CANCELADA
+            return 'pendiente'
+    
+    def get_estado_subasta(self, obj):
+        """
+        Estado de la subasta:
+        - 'activa': En curso
+        - 'finalizada': Completada
+        - 'programada': Aún no inicia
+        """
+        estado = obj.subasta.estado_calculado
+        return estado.lower()
