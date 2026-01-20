@@ -436,33 +436,33 @@ class PujaMovilViewSet(viewsets.ViewSet):
         """
         cliente = request.user  # Es un objeto Cliente
         
-        # Obtener todas las subastas donde el cliente ha pujado
-        subastas_con_pujas = Oferta.objects.filter(
+        # Obtener TODAS las pujas del cliente
+        todas_pujas = Oferta.objects.filter(
             cliente=cliente
-        ).values_list('subasta_id', flat=True).distinct()
+        ).select_related(
+            'subasta',
+            'subasta__packing_detalle',
+            'subasta__packing_detalle__packing_tipo',
+            'subasta__packing_detalle__packing_tipo__tipo_fruta',
+            'subasta__packing_detalle__packing_tipo__packing_semanal',
+            'subasta__packing_detalle__packing_tipo__packing_semanal__empresa',
+        ).order_by('subasta_id', '-monto')
         
-        # Para cada subasta, obtener la puja MÁS ALTA del cliente
-        pujas_maximas = []
-        for subasta_id in subastas_con_pujas:
-            puja_maxima = Oferta.objects.filter(
-                cliente=cliente,
-                subasta_id=subasta_id
-            ).select_related(
-                'subasta',
-                'subasta__packing_detalle',
-                'subasta__packing_detalle__packing_tipo',
-                'subasta__packing_detalle__packing_tipo__tipo_fruta',
-                'subasta__packing_detalle__packing_tipo__packing_semanal',
-                'subasta__packing_detalle__packing_tipo__packing_semanal__empresa',
-            ).order_by('-monto').first()
+        # Usar diccionario para asegurar UNA puja por subasta (la más alta)
+        pujas_por_subasta = {}
+        for puja in todas_pujas:
+            subasta_id = puja.subasta_id
             
-            if puja_maxima:
-                # Solo incluir si la subasta está activa o finalizada
-                estado_subasta = puja_maxima.subasta.estado_calculado
+            # Solo agregar si:
+            # 1. No existe en el diccionario (será la más alta por el order_by)
+            # 2. La subasta está activa o finalizada
+            if subasta_id not in pujas_por_subasta:
+                estado_subasta = puja.subasta.estado_calculado
                 if estado_subasta in ['ACTIVA', 'FINALIZADA']:
-                    pujas_maximas.append(puja_maxima)
+                    pujas_por_subasta[subasta_id] = puja
         
-        # Ordenar por fecha de subasta descendente (más recientes primero)
+        # Convertir a lista y ordenar por fecha descendente
+        pujas_maximas = list(pujas_por_subasta.values())
         pujas_maximas.sort(
             key=lambda p: p.subasta.packing_detalle.fecha,
             reverse=True
@@ -470,4 +470,5 @@ class PujaMovilViewSet(viewsets.ViewSet):
         
         serializer = HistorialPujaSerializer(pujas_maximas, many=True)
         return Response(serializer.data)
+
 
