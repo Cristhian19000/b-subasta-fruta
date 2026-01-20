@@ -281,7 +281,8 @@ class SubastaMovilListSerializer(serializers.ModelSerializer):
     cantidad = serializers.SerializerMethodField()
     precio_base = serializers.DecimalField(max_digits=12, decimal_places=2)
     precio_actual = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
-    imagen_url = serializers.SerializerMethodField()
+    imagen_url = serializers.SerializerMethodField()  # Primera imagen (compatibilidad)
+    imagenes = serializers.SerializerMethodField()  # Array de todas las imágenes
     fecha = serializers.SerializerMethodField()  # Fecha de la subasta en UTC
     hora_inicio = serializers.SerializerMethodField()
     hora_fin = serializers.SerializerMethodField()
@@ -302,6 +303,7 @@ class SubastaMovilListSerializer(serializers.ModelSerializer):
             'precio_base',
             'precio_actual',
             'imagen_url',
+            'imagenes',
             'fecha',
             'hora_inicio',
             'hora_fin',
@@ -324,7 +326,7 @@ class SubastaMovilListSerializer(serializers.ModelSerializer):
         return f"{kilos} kg"
     
     def get_imagen_url(self, obj):
-        """URL completa de la imagen principal."""
+        """URL completa de la imagen principal (primera imagen para compatibilidad)."""
         imagenes = obj.get_imagenes()
         if imagenes.exists():
             imagen = imagenes.first()
@@ -334,6 +336,21 @@ class SubastaMovilListSerializer(serializers.ModelSerializer):
             elif imagen.imagen:
                 return imagen.imagen.url
         return None
+    
+    def get_imagenes(self, obj):
+        """Array con URLs de todas las imágenes para carrusel."""
+        imagenes = obj.get_imagenes()
+        request = self.context.get('request')
+        urls = []
+        
+        for imagen in imagenes:
+            if imagen.imagen:
+                if request:
+                    urls.append(request.build_absolute_uri(imagen.imagen.url))
+                else:
+                    urls.append(imagen.imagen.url)
+        
+        return urls
     
     def get_fecha(self, obj):
         """Fecha de la subasta en UTC (YYYY-MM-DD)."""
@@ -383,7 +400,8 @@ class SubastaMovilDetailSerializer(serializers.ModelSerializer):
     cantidad = serializers.SerializerMethodField()
     precio_base = serializers.DecimalField(max_digits=12, decimal_places=2)
     precio_actual = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
-    imagen_url = serializers.SerializerMethodField()
+    imagen_url = serializers.SerializerMethodField()  # Primera imagen (compatibilidad)
+    imagenes = serializers.SerializerMethodField()  # Array de todas las imágenes
     fecha = serializers.SerializerMethodField()  # Fecha de la subasta en UTC
     hora_inicio = serializers.SerializerMethodField()
     hora_fin = serializers.SerializerMethodField()
@@ -406,6 +424,7 @@ class SubastaMovilDetailSerializer(serializers.ModelSerializer):
             'precio_base',
             'precio_actual',
             'imagen_url',
+            'imagenes',
             'fecha',
             'hora_inicio',
             'hora_fin',
@@ -428,6 +447,7 @@ class SubastaMovilDetailSerializer(serializers.ModelSerializer):
         return f"{kilos} kg"
     
     def get_imagen_url(self, obj):
+        """URL de la primera imagen (compatibilidad)."""
         imagenes = obj.get_imagenes()
         if imagenes.exists():
             imagen = imagenes.first()
@@ -435,6 +455,21 @@ class SubastaMovilDetailSerializer(serializers.ModelSerializer):
             if request and imagen.imagen:
                 return request.build_absolute_uri(imagen.imagen.url)
         return None
+    
+    def get_imagenes(self, obj):
+        """Array con URLs de todas las imágenes para carrusel."""
+        imagenes = obj.get_imagenes()
+        request = self.context.get('request')
+        urls = []
+        
+        for imagen in imagenes:
+            if imagen.imagen:
+                if request:
+                    urls.append(request.build_absolute_uri(imagen.imagen.url))
+                else:
+                    urls.append(imagen.imagen.url)
+        
+        return urls
     
     def get_fecha(self, obj):
         """Fecha de la subasta en UTC (YYYY-MM-DD)."""

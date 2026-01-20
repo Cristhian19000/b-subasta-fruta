@@ -4,13 +4,19 @@
 
 import { Button, Input } from '../../components/common';
 
-const UsuarioForm = ({ formData, onChange, onSubmit, onCancel, mode }) => {
+const UsuarioForm = ({ formData, onChange, onSubmit, onCancel, mode, errors = {} }) => {
     const handleInputChange = (e) => {
         const { name, value, type, checked } = e.target;
         onChange({
             ...formData,
             [name]: type === 'checkbox' ? checked : value
         });
+    };
+
+    const getFieldError = (fieldName) => {
+        if (!errors[fieldName]) return null;
+        const error = errors[fieldName];
+        return Array.isArray(error) ? error.join(', ') : error;
     };
 
     return (
@@ -23,6 +29,8 @@ const UsuarioForm = ({ formData, onChange, onSubmit, onCancel, mode }) => {
                     onChange={handleInputChange}
                     required
                     disabled={mode === 'edit'}
+                    error={getFieldError('username')}
+                    placeholder="Sin espacios (ej: jperez)"
                 />
                 <Input
                     label="Email"
@@ -31,6 +39,7 @@ const UsuarioForm = ({ formData, onChange, onSubmit, onCancel, mode }) => {
                     value={formData.email}
                     onChange={handleInputChange}
                     required
+                    error={getFieldError('email')}
                 />
             </div>
 
@@ -58,6 +67,7 @@ const UsuarioForm = ({ formData, onChange, onSubmit, onCancel, mode }) => {
                     onChange={handleInputChange}
                     required={mode === 'create'}
                     placeholder={mode === 'edit' ? 'Dejar vacío para mantener' : ''}
+                    error={getFieldError('password')}
                 />
                 <Input
                     label="Teléfono"

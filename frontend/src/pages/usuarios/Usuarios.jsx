@@ -23,11 +23,12 @@ const Usuarios = () => {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [search, setSearch] = useState('');
-    
+
     const [showModal, setShowModal] = useState(false);
     const [modalMode, setModalMode] = useState('create');
     const [selectedUsuario, setSelectedUsuario] = useState(null);
     const [formData, setFormData] = useState(initialFormData);
+    const [formErrors, setFormErrors] = useState({});
 
     useEffect(() => {
         fetchUsuarios();
@@ -74,7 +75,7 @@ const Usuarios = () => {
 
     const handleDelete = async (id) => {
         if (!window.confirm('¿Está seguro de desactivar este usuario?')) return;
-        
+
         try {
             await api.delete(`/usuarios/${id}/`);
             setSuccess('Usuario desactivado correctamente');
@@ -99,14 +100,15 @@ const Usuarios = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
-        
+        setFormErrors({});
+
         try {
             const dataToSend = { ...formData };
-            
+
             if (modalMode === 'edit' && !dataToSend.password) {
                 delete dataToSend.password;
             }
-            
+
             if (modalMode === 'create') {
                 await api.post('/usuarios/', dataToSend);
                 setSuccess('Usuario creado correctamente');
@@ -119,13 +121,16 @@ const Usuarios = () => {
             setTimeout(() => setSuccess(''), 3000);
         } catch (err) {
             const errorData = err.response?.data;
-            if (errorData) {
-                const errorMessages = Object.entries(errorData)
-                    .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`)
-                    .join(', ');
-                setError(errorMessages);
+
+            if (errorData && typeof errorData === 'object') {
+                // Si son errores de campo, guardarlos para mostrarlos en campos individuales
+                setFormErrors(errorData);
+
+                // También mostrar un mensaje general
+                const fieldNames = Object.keys(errorData).join(', ');
+                setError(`Por favor revise los siguientes campos: ${fieldNames}`);
             } else {
-                setError('Error al guardar el usuario');
+                setError(err.response?.data?.detail || 'Error al guardar el usuario');
             }
         }
     };
@@ -133,9 +138,10 @@ const Usuarios = () => {
     const handleCloseModal = () => {
         setShowModal(false);
         setSelectedUsuario(null);
+        setFormErrors({});
     };
 
-    const filteredUsuarios = usuarios.filter(usuario => 
+    const filteredUsuarios = usuarios.filter(usuario =>
         usuario.username?.toLowerCase().includes(search.toLowerCase()) ||
         usuario.email?.toLowerCase().includes(search.toLowerCase()) ||
         usuario.first_name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -269,6 +275,7 @@ const Usuarios = () => {
                     onSubmit={handleSubmit}
                     onCancel={handleCloseModal}
                     mode={modalMode}
+                    errors={formErrors}
                 />
             </Modal>
         </div>

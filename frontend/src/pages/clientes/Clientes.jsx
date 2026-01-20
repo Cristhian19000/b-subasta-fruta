@@ -32,11 +32,12 @@ const Clientes = () => {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [search, setSearch] = useState('');
-    
+
     const [showModal, setShowModal] = useState(false);
     const [modalMode, setModalMode] = useState('create');
     const [selectedCliente, setSelectedCliente] = useState(null);
     const [formData, setFormData] = useState(initialFormData);
+    const [formErrors, setFormErrors] = useState({});
 
     useEffect(() => {
         fetchClientes();
@@ -97,7 +98,7 @@ const Clientes = () => {
 
     const handleDelete = async (id) => {
         if (!window.confirm('¿Está seguro de eliminar este cliente?')) return;
-        
+
         try {
             await api.delete(`/clientes/${id}/`);
             setSuccess('Cliente eliminado correctamente');
@@ -111,19 +112,17 @@ const Clientes = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
-        
+        setFormErrors({});
+
         // Filtrar campos de solo lectura antes de enviar
         const { id, fecha_creacion, fecha_actualizacion, ...dataToSend } = formData;
-        
-        console.log('Datos a enviar:', dataToSend);
-        
+
         try {
             if (modalMode === 'create') {
                 await api.post('/clientes/', dataToSend);
                 setSuccess('Cliente creado correctamente');
             } else {
-                const response = await api.put(`/clientes/${selectedCliente.id}/`, dataToSend);
-                console.log('Respuesta:', response.data);
+                await api.put(`/clientes/${selectedCliente.id}/`, dataToSend);
                 setSuccess('Cliente actualizado correctamente');
             }
             setShowModal(false);
@@ -132,13 +131,16 @@ const Clientes = () => {
         } catch (err) {
             console.error('Error completo:', err.response?.data);
             const errorData = err.response?.data;
-            if (errorData) {
-                const errorMessages = Object.entries(errorData)
-                    .map(([key, value]) => `${key}: ${value}`)
-                    .join(', ');
-                setError(errorMessages);
+
+            if (errorData && typeof errorData === 'object') {
+                // Si son errores de campo, guardarlos para mostrarlos en campos individuales
+                setFormErrors(errorData);
+
+                // También mostrar un mensaje general
+                const fieldNames = Object.keys(errorData).join(', ');
+                setError(`Por favor revise los siguientes campos: ${fieldNames}`);
             } else {
-                setError('Error al guardar el cliente');
+                setError(err.response?.data?.detail || 'Error al guardar el cliente');
             }
         }
     };
@@ -146,6 +148,7 @@ const Clientes = () => {
     const handleCloseModal = () => {
         setShowModal(false);
         setSelectedCliente(null);
+        setFormErrors({});
     };
 
     const handleEditFromView = () => {
@@ -153,7 +156,7 @@ const Clientes = () => {
         setModalMode('edit');
     };
 
-    const filteredClientes = clientes.filter(cliente => 
+    const filteredClientes = clientes.filter(cliente =>
         cliente.ruc_dni?.toLowerCase().includes(search.toLowerCase()) ||
         cliente.nombre_razon_social?.toLowerCase().includes(search.toLowerCase())
     );
@@ -285,7 +288,7 @@ const Clientes = () => {
                 onClose={handleCloseModal}
                 title={
                     modalMode === 'create' ? 'Nuevo Cliente' :
-                    modalMode === 'edit' ? 'Editar Cliente' : 'Detalle del Cliente'
+                        modalMode === 'edit' ? 'Editar Cliente' : 'Detalle del Cliente'
                 }
                 size="lg"
             >
@@ -302,6 +305,7 @@ const Clientes = () => {
                         onSubmit={handleSubmit}
                         onCancel={handleCloseModal}
                         mode={modalMode}
+                        errors={formErrors}
                     />
                 )}
             </Modal>

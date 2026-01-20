@@ -5,13 +5,19 @@
 
 import { Button, Input, Select } from '../../components/common';
 
-const ClienteForm = ({ formData, onChange, onSubmit, onCancel, mode }) => {
+const ClienteForm = ({ formData, onChange, onSubmit, onCancel, mode, errors = {} }) => {
     const handleInputChange = (e) => {
         const { name, value, type, checked } = e.target;
         onChange({
             ...formData,
             [name]: type === 'checkbox' ? checked : value
         });
+    };
+
+    const getFieldError = (fieldName) => {
+        if (!errors[fieldName]) return null;
+        const error = errors[fieldName];
+        return Array.isArray(error) ? error.join(', ') : error;
     };
 
     return (
@@ -29,6 +35,7 @@ const ClienteForm = ({ formData, onChange, onSubmit, onCancel, mode }) => {
                         onChange={handleInputChange}
                         required
                         maxLength="11"
+                        error={getFieldError('ruc_dni')}
                     />
                     <Select
                         label="Tipo"
@@ -40,6 +47,7 @@ const ClienteForm = ({ formData, onChange, onSubmit, onCancel, mode }) => {
                             { value: 'persona_natural', label: 'Persona Natural' },
                             { value: 'persona_juridica', label: 'Persona Jurídica' },
                         ]}
+                        error={getFieldError('tipo')}
                     />
                     <div className="col-span-2">
                         <Input
@@ -48,6 +56,7 @@ const ClienteForm = ({ formData, onChange, onSubmit, onCancel, mode }) => {
                             value={formData.nombre_razon_social}
                             onChange={handleInputChange}
                             required
+                            error={getFieldError('nombre_razon_social')}
                         />
                     </div>
                     <Input
@@ -85,10 +94,11 @@ const ClienteForm = ({ formData, onChange, onSubmit, onCancel, mode }) => {
                         onChange={handleInputChange}
                         required={mode === 'create'}
                         placeholder={mode === 'create' ? "Defina una contraseña inicial" : "Dejar en blanco para mantener la actual"}
+                        error={getFieldError('password')}
                     />
                     <p className="text-xs text-gray-400 -mt-2">
-                        {mode === 'create' 
-                            ? "Esta contraseña permitirá al cliente ingresar al sistema de subastas." 
+                        {mode === 'create'
+                            ? "Esta contraseña permitirá al cliente ingresar al sistema de subastas."
                             : "Solo complete este campo si el cliente solicitó un cambio de clave o la olvidó."}
                     </p>
                 </div>
@@ -128,6 +138,7 @@ const ClienteForm = ({ formData, onChange, onSubmit, onCancel, mode }) => {
                         value={formData.correo_electronico_1}
                         onChange={handleInputChange}
                         required
+                        error={getFieldError('correo_electronico_1')}
                     />
                 </div>
             </div>

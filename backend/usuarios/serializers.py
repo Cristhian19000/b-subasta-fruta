@@ -50,6 +50,25 @@ class UsuarioSerializer(serializers.ModelSerializer):
             'password': {'write_only': True}
         }
     
+    def validate_username(self, value):
+        """
+        Validar que el username no contenga espacios.
+        Los usernames de Django no permiten espacios, pero el mensaje por defecto no es claro.
+        """
+        if ' ' in value:
+            raise serializers.ValidationError(
+                "El nombre de usuario no puede contener espacios. Use un solo nombre sin espacios (ej: 'jperez' en lugar de 'juan perez')."
+            )
+        
+        # Validación adicional: solo letras, números y caracteres especiales permitidos
+        import re
+        if not re.match(r'^[\w.@+-]+$', value):
+            raise serializers.ValidationError(
+                "El nombre de usuario solo puede contener letras, números y los caracteres: @ . + - _"
+            )
+        
+        return value
+    
     def create(self, validated_data):
         """Crear usuario con su perfil asociado."""
         # Extraer datos del perfil
