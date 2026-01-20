@@ -2,6 +2,7 @@
  * API para el Módulo de Subastas.
  * 
  * Endpoints para gestionar subastas y ofertas desde el panel administrativo.
+ * NOTA: Los endpoints admin están bajo /admin/subastas/ y /admin/ofertas/
  */
 
 import api from './axios';
@@ -15,7 +16,7 @@ import api from './axios';
  * @param {Object} params - Filtros (estado, empresa, packing_semanal, fecha, activas)
  */
 export const getSubastas = (params = {}) => {
-    return api.get('/subastas/', { params });
+    return api.get('/admin/subastas/', { params });
 };
 
 /**
@@ -23,7 +24,7 @@ export const getSubastas = (params = {}) => {
  * @param {number} id - ID de la subasta
  */
 export const getSubasta = (id) => {
-    return api.get(`/subastas/${id}/`);
+    return api.get(`/admin/subastas/${id}/`);
 };
 
 /**
@@ -31,7 +32,7 @@ export const getSubasta = (id) => {
  * @param {Object} data - { packing_detalle, fecha_hora_inicio, fecha_hora_fin, precio_base }
  */
 export const createSubasta = (data) => {
-    return api.post('/subastas/', data);
+    return api.post('/admin/subastas/', data);
 };
 
 /**
@@ -40,7 +41,7 @@ export const createSubasta = (data) => {
  * @param {Object} data - Datos a actualizar
  */
 export const updateSubasta = (id, data) => {
-    return api.patch(`/subastas/${id}/`, data);
+    return api.patch(`/admin/subastas/${id}/`, data);
 };
 
 /**
@@ -48,7 +49,7 @@ export const updateSubasta = (id, data) => {
  * @param {number} id - ID de la subasta
  */
 export const cancelarSubasta = (id) => {
-    return api.post(`/subastas/${id}/cancelar/`);
+    return api.post(`/admin/subastas/${id}/cancelar/`);
 };
 
 /**
@@ -56,21 +57,21 @@ export const cancelarSubasta = (id) => {
  * @param {number} id - ID de la subasta
  */
 export const getHistorialOfertas = (id) => {
-    return api.get(`/subastas/${id}/historial_ofertas/`);
+    return api.get(`/admin/subastas/${id}/historial_ofertas/`);
 };
 
 /**
  * Obtener resumen de subastas por estado.
  */
 export const getResumenSubastas = () => {
-    return api.get('/subastas/resumen/');
+    return api.get('/admin/subastas/resumen/');
 };
 
 /**
  * Actualizar estados de subastas basándose en las fechas.
  */
 export const actualizarEstadosSubastas = () => {
-    return api.post('/subastas/actualizar_estados/');
+    return api.post('/admin/subastas/actualizar_estados/');
 };
 
 // =============================================================================
@@ -82,7 +83,7 @@ export const actualizarEstadosSubastas = () => {
  * @param {Object} params - Filtros (subasta, cliente, ganadoras)
  */
 export const getOfertas = (params = {}) => {
-    return api.get('/ofertas/', { params });
+    return api.get('/admin/ofertas/', { params });
 };
 
 /**
@@ -90,7 +91,7 @@ export const getOfertas = (params = {}) => {
  * @param {Object} data - { subasta, cliente, monto }
  */
 export const createOferta = (data) => {
-    return api.post('/ofertas/', data);
+    return api.post('/admin/ofertas/', data);
 };
 
 // =============================================================================
@@ -101,7 +102,7 @@ export const createOferta = (data) => {
  * Obtener subastas activas (en curso).
  */
 export const getSubastasActivas = () => {
-    return api.get('/subastas/', { params: { activas: 'true' } });
+    return api.get('/admin/subastas/', { params: { activas: 'true' } });
 };
 
 /**
@@ -109,7 +110,7 @@ export const getSubastasActivas = () => {
  * @param {number} packingSemanalId - ID del packing semanal
  */
 export const getSubastasPorPacking = (packingSemanalId) => {
-    return api.get('/subastas/', { params: { packing_semanal: packingSemanalId } });
+    return api.get('/admin/subastas/', { params: { packing_semanal: packingSemanalId } });
 };
 
 /**
@@ -117,7 +118,7 @@ export const getSubastasPorPacking = (packingSemanalId) => {
  * @param {number} packingDetalleId - ID del packing detalle
  */
 export const getSubastaPorDetalle = async (packingDetalleId) => {
-    const response = await api.get('/subastas/', { 
+    const response = await api.get('/admin/subastas/', { 
         params: { packing_detalle: packingDetalleId } 
     });
     return response.data.length > 0 ? response.data[0] : null;

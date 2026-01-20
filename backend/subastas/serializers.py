@@ -262,64 +262,69 @@ class SubastaUpdateSerializer(serializers.ModelSerializer):
 
 
 # =============================================================================
-# SERIALIZERS PARA APP MÓVIL
+# SERIALIZERS PARA APP MÓVIL ANDROID
+# Formato exacto esperado por la aplicación Kotlin
 # =============================================================================
+
+from django.utils import timezone as django_timezone
+
 
 class SubastaMovilListSerializer(serializers.ModelSerializer):
     """
-    RF-04: Listado de subastas para la app móvil.
-    Tarjetas informativas con información del producto.
+    Listado de subastas para la app móvil Android.
+    Formato exacto esperado por la app.
     """
     
-    tipo_fruta = serializers.CharField(source='tipo_fruta.nombre', read_only=True)
-    empresa = serializers.CharField(source='empresa.nombre', read_only=True)
-    fecha_produccion = serializers.DateField(source='packing_detalle.fecha', read_only=True)
-    kilos = serializers.DecimalField(source='kilos_totales', max_digits=10, decimal_places=2, read_only=True)
-    
-    # Estado para mostrar etiquetas "Próximamente" o "En Vivo"
-    estado_actual = serializers.CharField(source='estado_calculado', read_only=True)
-    etiqueta = serializers.SerializerMethodField()
-    
-    # Precio actual
+    # Campos con nombres exactos que espera la app Android
+    producto = serializers.SerializerMethodField()
+    tipo = serializers.CharField(source='tipo_fruta.nombre', read_only=True)
+    cantidad = serializers.SerializerMethodField()
+    precio_base = serializers.DecimalField(max_digits=12, decimal_places=2)
     precio_actual = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
-    
-    # Tiempo restante (para RF-06)
-    tiempo_restante = serializers.IntegerField(source='tiempo_restante_segundos', read_only=True)
-    
-    # Imagen principal
-    imagen_principal = serializers.SerializerMethodField()
+    imagen_url = serializers.SerializerMethodField()
+    fecha = serializers.SerializerMethodField()  # Fecha de la subasta en UTC
+    hora_inicio = serializers.SerializerMethodField()
+    hora_fin = serializers.SerializerMethodField()
+    # Timestamps en milisegundos UTC para el cronómetro
+    hora_inicio_ms = serializers.SerializerMethodField()
+    hora_fin_ms = serializers.SerializerMethodField()
+    estado = serializers.SerializerMethodField()
+    descripcion = serializers.SerializerMethodField()
+    unidad = serializers.SerializerMethodField()
     
     class Meta:
         model = Subasta
         fields = [
             'id',
-            'tipo_fruta',
-            'empresa',
-            'fecha_produccion',
-            'kilos',
-            'fecha_hora_inicio',
-            'fecha_hora_fin',
+            'producto',
+            'tipo',
+            'cantidad',
             'precio_base',
             'precio_actual',
-            'estado_actual',
-            'etiqueta',
-            'tiempo_restante',
-            'imagen_principal',
+            'imagen_url',
+            'fecha',
+            'hora_inicio',
+            'hora_fin',
+            'hora_inicio_ms',
+            'hora_fin_ms',
+            'estado',
+            'descripcion',
+            'unidad',
         ]
     
-    def get_etiqueta(self, obj):
-        """RF-04: Etiquetas para la app."""
-        estado = obj.estado_calculado
-        if estado == 'PROGRAMADA':
-            return 'Próximamente'
-        elif estado == 'ACTIVA':
-            return 'En Vivo'
-        elif estado == 'FINALIZADA':
-            return 'Finalizada'
-        return 'Cancelada'
+    def get_producto(self, obj):
+        """Nombre del producto (usamos el nombre de la empresa o ARÁNDANO por defecto)."""
+        return "ARÁNDANO"
     
-    def get_imagen_principal(self, obj):
-        """Obtiene la primera imagen según la jerarquía."""
+    def get_cantidad(self, obj):
+        """Cantidad en formato legible."""
+        kilos = obj.kilos_totales
+        if kilos >= 1000:
+            return f"{kilos / 1000:.1f} tn"
+        return f"{kilos} kg"
+    
+    def get_imagen_url(self, obj):
+        """URL completa de la imagen principal."""
         imagenes = obj.get_imagenes()
         if imagenes.exists():
             imagen = imagenes.first()
@@ -329,31 +334,198 @@ class SubastaMovilListSerializer(serializers.ModelSerializer):
             elif imagen.imagen:
                 return imagen.imagen.url
         return None
-
-
-class SubastaMovilDetailSerializer(SubastaDetailSerializer):
-    """
-    RF-05 y RF-06: Detalle de subasta para app móvil.
-    Incluye información para subastas programadas y activas.
-    """
     
-    etiqueta = serializers.SerializerMethodField()
-    puede_ofertar = serializers.SerializerMethodField()
+    def get_fecha(self, obj):
+        """Fecha de la subasta en UTC (YYYY-MM-DD)."""
+        # Usamos UTC para consistencia con el cronómetro
+        return obj.fecha_hora_inicio.strftime("%Y-%m-%d")
     
-    class Meta(SubastaDetailSerializer.Meta):
-        fields = SubastaDetailSerializer.Meta.fields + ['etiqueta', 'puede_ofertar']
+    def get_hora_inicio(self, obj):
+        """Hora de inicio en formato HH:MM (UTC)."""
+        return obj.fecha_hora_inicio.strftime("%H:%M")
     
-    def get_etiqueta(self, obj):
-        """Etiqueta de estado."""
+    def get_hora_fin(self, obj):
+        """Hora de fin en formato HH:MM (UTC)."""
+        return obj.fecha_hora_fin.strftime("%H:%M")
+    
+    def get_hora_inicio_ms(self, obj):
+        """Timestamp de inicio en milisegundos UTC (para cronómetro)."""
+        return int(obj.fecha_hora_inicio.timestamp() * 1000)
+    
+    def get_hora_fin_ms(self, obj):
+        """Timestamp de fin en milisegundos UTC (para cronómetro)."""
+        return int(obj.fecha_hora_fin.timestamp() * 1000)
+    
+    def get_estado(self, obj):
+        """Estado en minúsculas como espera la app."""
         estado = obj.estado_calculado
-        if estado == 'PROGRAMADA':
-            return 'Próximamente'
-        elif estado == 'ACTIVA':
-            return 'En Vivo'
-        elif estado == 'FINALIZADA':
-            return 'Finalizada'
-        return 'Cancelada'
+        return estado.lower()
     
-    def get_puede_ofertar(self, obj):
-        """RF-05: Indica si el botón de ofertar debe estar habilitado."""
-        return obj.esta_activa
+    def get_descripcion(self, obj):
+        """Descripción del producto."""
+        empresa = obj.empresa.nombre
+        tipo = obj.tipo_fruta.nombre
+        return f"{tipo} - {empresa}"
+    
+    def get_unidad(self, obj):
+        """Unidad de medida."""
+        return "kg"
+
+
+class SubastaMovilDetailSerializer(serializers.ModelSerializer):
+    """
+    Detalle de subasta para la app móvil Android.
+    Incluye información de pujas y última puja del usuario.
+    """
+    
+    producto = serializers.SerializerMethodField()
+    tipo = serializers.CharField(source='tipo_fruta.nombre', read_only=True)
+    cantidad = serializers.SerializerMethodField()
+    precio_base = serializers.DecimalField(max_digits=12, decimal_places=2)
+    precio_actual = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    imagen_url = serializers.SerializerMethodField()
+    fecha = serializers.SerializerMethodField()  # Fecha de la subasta en UTC
+    hora_inicio = serializers.SerializerMethodField()
+    hora_fin = serializers.SerializerMethodField()
+    # Timestamps en milisegundos UTC para el cronómetro
+    hora_inicio_ms = serializers.SerializerMethodField()
+    hora_fin_ms = serializers.SerializerMethodField()
+    estado = serializers.SerializerMethodField()
+    descripcion = serializers.SerializerMethodField()
+    total_pujas = serializers.SerializerMethodField()
+    ultima_puja = serializers.SerializerMethodField()
+    mi_ultima_puja = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Subasta
+        fields = [
+            'id',
+            'producto',
+            'tipo',
+            'cantidad',
+            'precio_base',
+            'precio_actual',
+            'imagen_url',
+            'fecha',
+            'hora_inicio',
+            'hora_fin',
+            'hora_inicio_ms',
+            'hora_fin_ms',
+            'estado',
+            'descripcion',
+            'total_pujas',
+            'ultima_puja',
+            'mi_ultima_puja',
+        ]
+    
+    def get_producto(self, obj):
+        return "ARÁNDANO"
+    
+    def get_cantidad(self, obj):
+        kilos = obj.kilos_totales
+        if kilos >= 1000:
+            return f"{kilos / 1000:.1f} tn"
+        return f"{kilos} kg"
+    
+    def get_imagen_url(self, obj):
+        imagenes = obj.get_imagenes()
+        if imagenes.exists():
+            imagen = imagenes.first()
+            request = self.context.get('request')
+            if request and imagen.imagen:
+                return request.build_absolute_uri(imagen.imagen.url)
+        return None
+    
+    def get_fecha(self, obj):
+        """Fecha de la subasta en UTC (YYYY-MM-DD)."""
+        return obj.fecha_hora_inicio.strftime("%Y-%m-%d")
+    
+    def get_hora_inicio(self, obj):
+        """Hora de inicio en formato HH:MM (UTC)."""
+        return obj.fecha_hora_inicio.strftime("%H:%M")
+    
+    def get_hora_fin(self, obj):
+        """Hora de fin en formato HH:MM (UTC)."""
+        return obj.fecha_hora_fin.strftime("%H:%M")
+    
+    def get_hora_inicio_ms(self, obj):
+        """Timestamp de inicio en milisegundos UTC (para cronómetro)."""
+        return int(obj.fecha_hora_inicio.timestamp() * 1000)
+    
+    def get_hora_fin_ms(self, obj):
+        """Timestamp de fin en milisegundos UTC (para cronómetro)."""
+        return int(obj.fecha_hora_fin.timestamp() * 1000)
+    
+    def get_estado(self, obj):
+        return obj.estado_calculado.lower()
+    
+    def get_descripcion(self, obj):
+        empresa = obj.empresa.nombre
+        tipo = obj.tipo_fruta.nombre
+        return f"{tipo} - {empresa}"
+    
+    def get_total_pujas(self, obj):
+        return obj.ofertas.count()
+    
+    def get_ultima_puja(self, obj):
+        """Última puja realizada (la ganadora actual)."""
+        oferta = obj.oferta_ganadora
+        if oferta:
+            return {
+                'id': oferta.id,
+                'monto': float(oferta.monto),
+                'fecha_hora': oferta.fecha_oferta.isoformat(),
+                'es_ganadora': oferta.es_ganadora
+            }
+        return None
+    
+    def get_mi_ultima_puja(self, obj):
+        """Última puja del cliente autenticado."""
+        request = self.context.get('request')
+        if request and hasattr(request, 'user') and request.user:
+            # El user aquí es el Cliente (por ClienteJWTAuthentication)
+            cliente = request.user
+            if hasattr(cliente, 'id'):
+                mi_puja = obj.ofertas.filter(cliente_id=cliente.id).order_by('-fecha_oferta').first()
+                if mi_puja:
+                    return float(mi_puja.monto)
+        return None
+
+
+class PujaMovilSerializer(serializers.ModelSerializer):
+    """Serializer para listar pujas de una subasta."""
+    
+    fecha_hora = serializers.DateTimeField(source='fecha_oferta', read_only=True)
+    
+    class Meta:
+        model = Oferta
+        fields = ['id', 'monto', 'fecha_hora']
+
+
+class HistorialPujaSerializer(serializers.ModelSerializer):
+    """Serializer para el historial de pujas del cliente."""
+    
+    subasta_id = serializers.IntegerField(source='subasta.id', read_only=True)
+    producto = serializers.SerializerMethodField()
+    fecha_hora = serializers.DateTimeField(source='fecha_oferta', read_only=True)
+    estado = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Oferta
+        fields = ['id', 'subasta_id', 'producto', 'monto', 'fecha_hora', 'es_ganadora', 'estado']
+    
+    def get_producto(self, obj):
+        return "ARÁNDANO"
+    
+    def get_estado(self, obj):
+        """Estado de la puja: ganadora, superada, en_curso."""
+        if obj.es_ganadora:
+            subasta_estado = obj.subasta.estado_calculado
+            if subasta_estado == 'FINALIZADA':
+                return 'ganadora'
+            return 'ganando'
+        else:
+            # Verificar si la subasta sigue activa
+            if obj.subasta.esta_activa:
+                return 'superada'
+            return 'perdida'

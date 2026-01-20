@@ -25,6 +25,8 @@ from .serializers import (
     OfertaCreateSerializer,
     SubastaMovilListSerializer,
     SubastaMovilDetailSerializer,
+    PujaMovilSerializer,
+    HistorialPujaSerializer,
 )
 
 
@@ -260,21 +262,35 @@ class OfertaViewSet(viewsets.ModelViewSet):
 
 
 # =============================================================================
-# ENDPOINTS PARA APP MÓVIL
+# ENDPOINTS PARA APP MÓVIL ANDROID
+# Requieren autenticación JWT de Cliente
 # =============================================================================
+
+from clientes.authentication import ClienteJWTAuthentication
+from clientes.models import Cliente
+
+
+class IsClienteAuthenticated:
+    """
+    Permiso personalizado que verifica si el usuario autenticado es un Cliente.
+    """
+    def has_permission(self, request, view):
+        return request.user and isinstance(request.user, Cliente)
+
 
 class SubastaMovilViewSet(viewsets.ReadOnlyModelViewSet):
     """
-    ViewSet para la app móvil (Kotlin).
+    ViewSet para la app móvil Android.
     
-    RF-04: Visualización de listado de subastas
-    RF-05: Subastas programadas
-    RF-06: Subastas activas
+    Endpoints:
+    - GET /api/subastas/         -> Lista de subastas activas
+    - GET /api/subastas/{id}/    -> Detalle de una subasta
+    - GET /api/subastas/{id}/pujas/ -> Pujas de una subasta
     """
     
-    # Permitir acceso sin autenticación para listar subastas
-    # En producción, requerir autenticación del cliente
-    permission_classes = [AllowAny]
+    authentication_classes = [ClienteJWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    pagination_class = None  # Deshabilitar paginación para app móvil
     
     def get_queryset(self):
         """Obtener subastas disponibles para clientes."""
@@ -286,7 +302,7 @@ class SubastaMovilViewSet(viewsets.ReadOnlyModelViewSet):
             'packing_detalle__packing_tipo__tipo_fruta',
             'packing_detalle__packing_tipo__packing_semanal',
             'packing_detalle__packing_tipo__packing_semanal__empresa',
-        ).exclude(estado='CANCELADA')
+        ).prefetch_related('ofertas').exclude(estado='CANCELADA')
         
         # Filtro por estado
         estado = self.request.query_params.get('estado', None)
@@ -300,15 +316,8 @@ class SubastaMovilViewSet(viewsets.ReadOnlyModelViewSet):
         elif estado == 'finalizadas':
             queryset = queryset.filter(fecha_hora_fin__lt=ahora)
         else:
-            # Por defecto, mostrar programadas y activas
+            # Por defecto, mostrar programadas y activas (no finalizadas)
             queryset = queryset.filter(fecha_hora_fin__gte=ahora)
-        
-        # Filtro por tipo de fruta
-        tipo_fruta_id = self.request.query_params.get('tipo_fruta', None)
-        if tipo_fruta_id:
-            queryset = queryset.filter(
-                packing_detalle__packing_tipo__tipo_fruta_id=tipo_fruta_id
-            )
         
         return queryset.order_by('fecha_hora_inicio')
     
@@ -318,21 +327,50 @@ class SubastaMovilViewSet(viewsets.ReadOnlyModelViewSet):
             return SubastaMovilListSerializer
         return SubastaMovilDetailSerializer
     
-    @action(detail=True, methods=['post'])
-    def ofertar(self, request, pk=None):
+    @action(detail=True, methods=['get'])
+    def pujas(self, request, pk=None):
         """
-        RF-06: Endpoint para que el cliente haga una oferta.
-        
-        Body: { "cliente_id": int, "monto": decimal }
+        GET /api/subastas/{id}/pujas/
+        Lista de pujas de una subasta específica.
         """
         subasta = self.get_object()
+        pujas = subasta.ofertas.all().order_by('-monto')
+        serializer = PujaMovilSerializer(pujas, many=True)
+        return Response(serializer.data)
+
+
+class PujaMovilViewSet(viewsets.ViewSet):
+    """
+    ViewSet para pujas desde la app móvil Android.
+    
+    Endpoints:
+    - POST /api/pujas/           -> Enviar una puja
+    - GET /api/pujas/historial/  -> Historial de pujas del cliente
+    """
+    
+    authentication_classes = [ClienteJWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    
+    def create(self, request):
+        """
+        POST /api/pujas/
+        Enviar una puja/oferta.
         
-        cliente_id = request.data.get('cliente_id')
+        Body: { "subasta_id": 1, "monto": 5.90 }
+        """
+        subasta_id = request.data.get('subasta_id')
         monto = request.data.get('monto')
         
-        if not cliente_id or not monto:
+        # Validar campos requeridos
+        if not subasta_id:
             return Response(
-                {'error': 'Se requiere cliente_id y monto.'},
+                {'success': False, 'error': 'Se requiere subasta_id'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if not monto:
+            return Response(
+                {'success': False, 'error': 'Se requiere monto'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
@@ -340,23 +378,34 @@ class SubastaMovilViewSet(viewsets.ReadOnlyModelViewSet):
             monto = float(monto)
         except ValueError:
             return Response(
-                {'error': 'El monto debe ser un número válido.'},
+                {'success': False, 'error': 'El monto debe ser un número válido'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Usar transacción para control de concurrencia (RN-03)
+        # Obtener el cliente del token JWT
+        cliente = request.user  # Es un objeto Cliente por ClienteJWTAuthentication
+        
+        # Buscar la subasta
+        try:
+            subasta = Subasta.objects.get(pk=subasta_id)
+        except Subasta.DoesNotExist:
+            return Response(
+                {'success': False, 'error': 'Subasta no encontrada'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Usar transacción para control de concurrencia
         with transaction.atomic():
             # Bloquear la subasta
-            subasta = Subasta.objects.select_for_update().get(pk=subasta.pk)
+            subasta = Subasta.objects.select_for_update().get(pk=subasta_id)
             
-            # Validar oferta (RN-02)
+            # Validar oferta
             puede, mensaje = subasta.puede_ofertar(monto)
             if not puede:
                 return Response(
                     {
-                        'error': mensaje,
-                        'precio_actual': str(subasta.precio_actual),
-                        'puede_ofertar': False
+                        'success': False,
+                        'error': f'La oferta debe ser mayor al precio actual de S/ {subasta.precio_actual}'
                     },
                     status=status.HTTP_400_BAD_REQUEST
                 )
@@ -364,36 +413,32 @@ class SubastaMovilViewSet(viewsets.ReadOnlyModelViewSet):
             # Crear la oferta
             oferta = Oferta.objects.create(
                 subasta=subasta,
-                cliente_id=cliente_id,
+                cliente=cliente,
                 monto=monto
             )
         
         return Response({
+            'id': oferta.id,
             'success': True,
-            'mensaje': 'Oferta registrada exitosamente.',
-            'oferta': OfertaSerializer(oferta).data,
-            'precio_actual': str(subasta.precio_actual),
-            'es_ganador': oferta.es_ganadora
+            'message': 'Oferta registrada exitosamente',
+            'precio_actual': float(oferta.monto)
         }, status=status.HTTP_201_CREATED)
     
-    @action(detail=True, methods=['get'])
-    def estado_tiempo_real(self, request, pk=None):
+    @action(detail=False, methods=['get'])
+    def historial(self, request):
         """
-        Endpoint para obtener el estado en tiempo real de la subasta.
-        Útil para actualizar la UI de la app.
+        GET /api/pujas/historial/
+        Historial de pujas del cliente autenticado.
         """
-        subasta = self.get_object()
+        cliente = request.user  # Es un objeto Cliente
         
-        return Response({
-            'subasta_id': subasta.id,
-            'estado': subasta.estado_calculado,
-            'precio_actual': str(subasta.precio_actual),
-            'tiempo_restante': subasta.tiempo_restante_segundos,
-            'total_ofertas': subasta.ofertas.count(),
-            'cliente_ganando': {
-                'id': subasta.oferta_ganadora.cliente.id,
-                'nombre': subasta.oferta_ganadora.cliente.nombre_razon_social,
-                'monto': str(subasta.oferta_ganadora.monto)
-            } if subasta.oferta_ganadora else None
-        })
+        pujas = Oferta.objects.filter(cliente=cliente).select_related(
+            'subasta',
+            'subasta__packing_detalle',
+            'subasta__packing_detalle__packing_tipo',
+            'subasta__packing_detalle__packing_tipo__tipo_fruta',
+        ).order_by('-fecha_oferta')
+        
+        serializer = HistorialPujaSerializer(pujas, many=True)
+        return Response(serializer.data)
 

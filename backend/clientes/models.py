@@ -194,3 +194,24 @@ class Cliente(models.Model):
     def __str__(self):
         """Representación en texto del cliente (RUC/DNI - Nombre)."""
         return f"{self.ruc_dni} - {self.nombre_razon_social}"
+    
+    # =========================================================================
+    # PROPIEDADES PARA COMPATIBILIDAD CON DRF (IsAuthenticated)
+    # Django REST Framework espera estos atributos para verificar autenticación
+    # =========================================================================
+    
+    @property
+    def is_authenticated(self):
+        """
+        Indica si el cliente está autenticado.
+        DRF requiere este atributo para el permiso IsAuthenticated.
+        """
+        return True
+    
+    @property
+    def is_anonymous(self):
+        """
+        Indica si es un usuario anónimo.
+        DRF requiere este atributo para compatibilidad.
+        """
+        return False
