@@ -135,11 +135,9 @@ const Clientes = () => {
             if (errorData && typeof errorData === 'object') {
                 // Si son errores de campo, guardarlos para mostrarlos en campos individuales
                 setFormErrors(errorData);
-
-                // También mostrar un mensaje general
-                const fieldNames = Object.keys(errorData).join(', ');
-                setError(`Por favor revise los siguientes campos: ${fieldNames}`);
+                // NO mostrar mensaje general, solo errores inline en el formulario
             } else {
+                // Solo mostrar mensaje general si no son errores de campo
                 setError(err.response?.data?.detail || 'Error al guardar el cliente');
             }
         }

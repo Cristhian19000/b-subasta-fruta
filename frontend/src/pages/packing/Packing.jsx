@@ -207,16 +207,16 @@ const Packing = () => {
             setShowModal(false);
             fetchPackings();
             setTimeout(() => setSuccess(''), 3000);
-            
+
             // Devolver el packing creado/actualizado para subir imágenes
             return response.data;
         } catch (err) {
             const errorData = err.response?.data;
-            
+
             if (errorData) {
                 // Si el error es por la fecha duplicada, Django envía: 
                 // { "fecha_inicio_semana": ["Ya existe un packing para..."] }
-                
+
                 // Extraemos todos los mensajes de error en una sola cadena
                 const mensajes = Object.entries(errorData).map(([campo, errores]) => {
                     const nombreCampo = campo === 'fecha_inicio_semana' ? 'Fecha' : campo;
@@ -250,10 +250,10 @@ const Packing = () => {
     const formatDate = (dateStr) => {
         if (!dateStr) return '-';
         const date = new Date(dateStr + 'T00:00:00');
-        return date.toLocaleDateString('es-PE', { 
-            day: '2-digit', 
-            month: 'short', 
-            year: 'numeric' 
+        return date.toLocaleDateString('es-PE', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric'
         });
     };
 
@@ -431,12 +431,15 @@ const Packing = () => {
             {/* Modal */}
             <Modal
                 isOpen={showModal}
-                onClose={() => setShowModal(false)}
+                onClose={() => {
+                    setShowModal(false);
+                    setError(''); // Limpiar errores al cerrar el modal
+                }}
                 title={
-                    modalMode === 'create' 
-                        ? 'Nuevo Packing Semanal' 
-                        : modalMode === 'edit' 
-                            ? 'Editar Packing' 
+                    modalMode === 'create'
+                        ? 'Nuevo Packing Semanal'
+                        : modalMode === 'edit'
+                            ? 'Editar Packing'
                             : 'Detalle del Packing'
                 }
                 size="full"
@@ -453,7 +456,10 @@ const Packing = () => {
                         empresas={empresas}
                         tiposFruta={tiposFruta}
                         onSave={handleSave}
-                        onCancel={() => setShowModal(false)}
+                        onCancel={() => {
+                            setShowModal(false);
+                            setError(''); // Limpiar errores al cancelar
+                        }}
                         mode={modalMode}
                         errorServidor={error}
                     />
