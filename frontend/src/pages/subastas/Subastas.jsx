@@ -10,6 +10,7 @@ import { Button, Badge, Table, Modal, Input, Select, Alert } from '../../compone
 import { getSubastas, getResumenSubastas, actualizarEstadosSubastas, cancelarSubasta } from '../../api/subastas';
 import SubastaDetalle from './SubastaDetalle';
 import SubastaForm from './SubastaForm';
+import { Circle, Clock, Flag, RefreshCw } from 'lucide-react';
 
 // Colores para estados de subasta
 const ESTADO_COLORS = {
@@ -22,7 +23,7 @@ const ESTADO_COLORS = {
 // Etiquetas de estado
 const ESTADO_LABELS = {
     'PROGRAMADA': 'Programada',
-    'ACTIVA': 'En Vivo 🔴',
+    'ACTIVA': 'En Vivo',
     'FINALIZADA': 'Finalizada',
     'CANCELADA': 'Cancelada'
 };
@@ -33,29 +34,29 @@ const Subastas = () => {
     const [resumen, setResumen] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    
+
     // Filtros
     const [filtroEstado, setFiltroEstado] = useState('');
-    
+
     // Modales
     const [selectedSubasta, setSelectedSubasta] = useState(null);
     const [showDetalle, setShowDetalle] = useState(false);
     const [showForm, setShowForm] = useState(false);
-    
+
     // Cargar datos
     const cargarDatos = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
-            
+
             const params = {};
             if (filtroEstado) params.estado = filtroEstado;
-            
+
             const [subastasRes, resumenRes] = await Promise.all([
                 getSubastas(params),
                 getResumenSubastas()
             ]);
-            
+
             // Manejar respuesta paginada o array directo
             const subastasData = subastasRes.data?.results || subastasRes.data || [];
             setSubastas(Array.isArray(subastasData) ? subastasData : []);
@@ -67,11 +68,11 @@ const Subastas = () => {
             setLoading(false);
         }
     }, [filtroEstado]);
-    
+
     useEffect(() => {
         cargarDatos();
     }, [cargarDatos]);
-    
+
     // Actualizar estados automáticamente cada 30 segundos
     useEffect(() => {
         const interval = setInterval(async () => {
@@ -82,29 +83,29 @@ const Subastas = () => {
                 console.error('Error actualizando estados:', err);
             }
         }, 30000);
-        
+
         return () => clearInterval(interval);
     }, [cargarDatos]);
-    
+
     // Handlers
     const handleVerDetalle = (subasta) => {
         setSelectedSubasta(subasta);
         setShowDetalle(true);
     };
-    
+
     const handleNuevaSubasta = () => {
         setSelectedSubasta(null);
         setShowForm(true);
     };
-    
+
     const handleSubastaCreada = () => {
         setShowForm(false);
         cargarDatos();
     };
-    
+
     const handleCancelar = async (subasta) => {
         if (!window.confirm('¿Está seguro de cancelar esta subasta?')) return;
-        
+
         try {
             await cancelarSubasta(subasta.id);
             cargarDatos();
@@ -113,7 +114,7 @@ const Subastas = () => {
             setError('Error al cancelar la subasta');
         }
     };
-    
+
     // Formatters
     const formatDateTime = (dateStr) => {
         if (!dateStr) return '-';
@@ -124,21 +125,21 @@ const Subastas = () => {
             minute: '2-digit'
         });
     };
-    
+
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('es-PE', {
             style: 'currency',
             currency: 'PEN'
         }).format(amount || 0);
     };
-    
+
     const formatKg = (kg) => {
         return new Intl.NumberFormat('es-PE', {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2
         }).format(kg || 0) + ' kg';
     };
-    
+
     // Columnas de la tabla (formato compatible con Table.jsx: key, title, render)
     const columns = [
         {
@@ -176,8 +177,14 @@ const Subastas = () => {
             title: 'Horario',
             render: (_, row) => (
                 <div className="text-xs">
-                    <div>🕐 {formatDateTime(row.fecha_hora_inicio)}</div>
-                    <div>🏁 {formatDateTime(row.fecha_hora_fin)}</div>
+                    <div className="inline-flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-gray-500 flex-shrink-0" />
+                        <span>{formatDateTime(row.fecha_hora_inicio)}</span>
+                    </div>
+                    <div className="inline-flex items-center gap-1">
+                        <Flag className="w-3 h-3 text-gray-500 flex-shrink-0" />
+                        <span>{formatDateTime(row.fecha_hora_fin)}</span>
+                    </div>
                 </div>
             )
         },
@@ -198,7 +205,10 @@ const Subastas = () => {
             title: 'Estado',
             render: (_, row) => (
                 <Badge variant={ESTADO_COLORS[row.estado_actual] || 'default'}>
-                    {ESTADO_LABELS[row.estado_actual] || row.estado_actual}
+                    <span className="flex items-center gap-1">
+                        {row.estado_actual === 'ACTIVA' && <Circle className="w-2 h-2 fill-current" />}
+                        {ESTADO_LABELS[row.estado_actual] || row.estado_actual}
+                    </span>
                 </Badge>
             )
         },
@@ -231,16 +241,16 @@ const Subastas = () => {
             title: 'Acciones',
             render: (_, row) => (
                 <div className="flex gap-1">
-                    <Button 
-                        size="sm" 
+                    <Button
+                        size="sm"
                         variant="secondary"
                         onClick={() => handleVerDetalle(row)}
                     >
                         Ver
                     </Button>
                     {row.estado_actual !== 'FINALIZADA' && row.estado_actual !== 'CANCELADA' && (
-                        <Button 
-                            size="sm" 
+                        <Button
+                            size="sm"
                             variant="danger"
                             onClick={() => handleCancelar(row)}
                         >
@@ -251,7 +261,7 @@ const Subastas = () => {
             )
         }
     ];
-    
+
     return (
         <div className="space-y-6">
             {/* Header */}
@@ -264,7 +274,7 @@ const Subastas = () => {
                     + Nueva Subasta
                 </Button>
             </div>
-            
+
             {/* Resumen de estados */}
             {resumen && (
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -274,7 +284,10 @@ const Subastas = () => {
                     </div>
                     <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                         <div className="text-2xl font-bold text-green-700">{resumen.activas}</div>
-                        <div className="text-sm text-green-600">En Vivo 🔴</div>
+                        <div className="text-sm text-green-600">
+                            <Circle className="w-2 h-2 fill-current inline-block mr-1 relative top-[-1px]" />
+                            En Vivo
+                        </div>
                     </div>
                     <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                         <div className="text-2xl font-bold text-gray-700">{resumen.finalizadas}</div>
@@ -290,7 +303,7 @@ const Subastas = () => {
                     </div>
                 </div>
             )}
-            
+
             {/* Filtros */}
             <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
                 <div className="flex gap-4 items-end">
@@ -311,18 +324,21 @@ const Subastas = () => {
                         />
                     </div>
                     <Button variant="secondary" onClick={cargarDatos}>
-                        🔄 Actualizar
+                        <div className="flex items-center gap-1">
+                            <RefreshCw className="w-4 h-4" />
+                            <span>Actualizar</span>
+                        </div>
                     </Button>
                 </div>
             </div>
-            
+
             {/* Errores */}
             {error && (
                 <Alert type="error" onClose={() => setError(null)}>
                     {error}
                 </Alert>
             )}
-            
+
             {/* Tabla de subastas */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                 <Table
@@ -332,7 +348,7 @@ const Subastas = () => {
                     emptyMessage="No hay subastas registradas"
                 />
             </div>
-            
+
             {/* Modal de Detalle */}
             <Modal
                 isOpen={showDetalle}
@@ -348,7 +364,7 @@ const Subastas = () => {
                     />
                 )}
             </Modal>
-            
+
             {/* Modal de Formulario */}
             <Modal
                 isOpen={showForm}

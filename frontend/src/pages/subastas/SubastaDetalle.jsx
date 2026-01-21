@@ -7,6 +7,7 @@
 import { useState, useEffect } from 'react';
 import { Badge, Button, Alert } from '../../components/common';
 import { getSubasta, getHistorialOfertas } from '../../api/subastas';
+import { Circle, Trophy } from 'lucide-react';
 
 // Colores para estados
 const ESTADO_COLORS = {
@@ -22,7 +23,7 @@ const SubastaDetalle = ({ subasta: initialSubasta, onClose, onUpdate }) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [tiempoRestante, setTiempoRestante] = useState(0);
-    
+
     // Cargar detalle completo
     useEffect(() => {
         const cargarDetalle = async () => {
@@ -32,7 +33,7 @@ const SubastaDetalle = ({ subasta: initialSubasta, onClose, onUpdate }) => {
                     getSubasta(initialSubasta.id),
                     getHistorialOfertas(initialSubasta.id)
                 ]);
-                
+
                 setSubasta(detalleRes.data);
                 setHistorial(historialRes.data.historial || []);
                 setTiempoRestante(detalleRes.data.tiempo_restante || 0);
@@ -43,21 +44,21 @@ const SubastaDetalle = ({ subasta: initialSubasta, onClose, onUpdate }) => {
                 setLoading(false);
             }
         };
-        
+
         cargarDetalle();
     }, [initialSubasta.id]);
-    
+
     // Actualizar tiempo restante cada segundo si está activa
     useEffect(() => {
         if (subasta?.estado_actual !== 'ACTIVA') return;
-        
+
         const interval = setInterval(() => {
             setTiempoRestante((prev) => Math.max(0, prev - 1));
         }, 1000);
-        
+
         return () => clearInterval(interval);
     }, [subasta?.estado_actual]);
-    
+
     // Formatters
     const formatDateTime = (dateStr) => {
         if (!dateStr) return '-';
@@ -70,31 +71,31 @@ const SubastaDetalle = ({ subasta: initialSubasta, onClose, onUpdate }) => {
             minute: '2-digit'
         });
     };
-    
+
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('es-PE', {
             style: 'currency',
             currency: 'PEN'
         }).format(amount || 0);
     };
-    
+
     const formatKg = (kg) => {
         return new Intl.NumberFormat('es-PE', {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2
         }).format(kg || 0) + ' kg';
     };
-    
+
     const formatTiempo = (segundos) => {
         if (segundos <= 0) return '00:00:00';
-        
+
         const horas = Math.floor(segundos / 3600);
         const minutos = Math.floor((segundos % 3600) / 60);
         const segs = segundos % 60;
-        
+
         return `${String(horas).padStart(2, '0')}:${String(minutos).padStart(2, '0')}:${String(segs).padStart(2, '0')}`;
     };
-    
+
     if (loading) {
         return (
             <div className="flex justify-center items-center py-12">
@@ -102,28 +103,33 @@ const SubastaDetalle = ({ subasta: initialSubasta, onClose, onUpdate }) => {
             </div>
         );
     }
-    
+
     if (error) {
         return <Alert type="error">{error}</Alert>;
     }
-    
+
     if (!subasta) return null;
-    
+
     const ganador = historial.find(o => o.es_ganadora);
-    
+
     return (
         <div className="space-y-6">
             {/* Estado y tiempo restante */}
             <div className="flex justify-between items-center bg-gray-50 p-4 rounded-lg">
                 <div className="flex items-center gap-3">
-                    <Badge 
-                        variant={ESTADO_COLORS[subasta.estado_actual]} 
+                    <Badge
+                        variant={ESTADO_COLORS[subasta.estado_actual]}
                         className="text-lg px-4 py-2"
                     >
-                        {subasta.estado_actual === 'ACTIVA' ? '🔴 EN VIVO' : subasta.estado_actual}
+                        {subasta.estado_actual === 'ACTIVA' ? (
+                            <span className="flex items-center gap-2">
+                                <Circle className="w-3 h-3 fill-current animate-pulse" />
+                                EN VIVO
+                            </span>
+                        ) : subasta.estado_actual}
                     </Badge>
                 </div>
-                
+
                 {subasta.estado_actual === 'ACTIVA' && (
                     <div className="text-right">
                         <div className="text-sm text-gray-500">Tiempo restante</div>
@@ -133,7 +139,7 @@ const SubastaDetalle = ({ subasta: initialSubasta, onClose, onUpdate }) => {
                     </div>
                 )}
             </div>
-            
+
             {/* Información del producto */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-blue-50 p-4 rounded-lg">
@@ -155,7 +161,7 @@ const SubastaDetalle = ({ subasta: initialSubasta, onClose, onUpdate }) => {
                     <div className="text-lg font-semibold text-orange-900">{formatKg(subasta.kilos)}</div>
                 </div>
             </div>
-            
+
             {/* Horario de la subasta */}
             <div className="bg-gray-50 p-4 rounded-lg">
                 <h3 className="text-sm font-semibold text-gray-700 uppercase mb-3">
@@ -172,7 +178,7 @@ const SubastaDetalle = ({ subasta: initialSubasta, onClose, onUpdate }) => {
                     </div>
                 </div>
             </div>
-            
+
             {/* Precios */}
             <div className="grid grid-cols-2 gap-4">
                 <div className="bg-gray-100 p-4 rounded-lg text-center">
@@ -184,12 +190,15 @@ const SubastaDetalle = ({ subasta: initialSubasta, onClose, onUpdate }) => {
                     <div className="text-2xl font-bold text-green-700">{formatCurrency(subasta.precio_actual)}</div>
                 </div>
             </div>
-            
+
             {/* Ganador actual */}
             {ganador && (
                 <div className="bg-yellow-50 border-2 border-yellow-400 p-4 rounded-lg">
                     <h3 className="text-sm font-semibold text-yellow-700 uppercase mb-2">
-                        🏆 {subasta.estado_actual === 'FINALIZADA' ? 'Ganador' : 'Ganando'}
+                        <div className="flex items-center gap-2">
+                            <Trophy className="w-5 h-5" />
+                            {subasta.estado_actual === 'FINALIZADA' ? 'Ganador' : 'Ganando'}
+                        </div>
                     </h3>
                     <div className="flex justify-between items-center">
                         <div>
@@ -205,13 +214,13 @@ const SubastaDetalle = ({ subasta: initialSubasta, onClose, onUpdate }) => {
                     </div>
                 </div>
             )}
-            
+
             {/* Historial de ofertas */}
             <div>
                 <h3 className="text-sm font-semibold text-gray-700 uppercase mb-3">
                     Historial de Ofertas ({historial.length})
                 </h3>
-                
+
                 {historial.length > 0 ? (
                     <div className="border border-gray-200 rounded-lg overflow-hidden">
                         <table className="min-w-full divide-y divide-gray-200">
@@ -233,13 +242,13 @@ const SubastaDetalle = ({ subasta: initialSubasta, onClose, onUpdate }) => {
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
                                 {historial.map((oferta, index) => (
-                                    <tr 
-                                        key={oferta.id} 
+                                    <tr
+                                        key={oferta.id}
                                         className={`${oferta.es_ganadora ? 'bg-yellow-50' : 'hover:bg-gray-50'}`}
                                     >
                                         <td className="px-4 py-3 text-sm text-gray-500">
                                             {index + 1}
-                                            {oferta.es_ganadora && ' 🏆'}
+                                            {oferta.es_ganadora && <Trophy className="w-4 h-4 text-yellow-600 ml-1 inline-block" />}
                                         </td>
                                         <td className="px-4 py-3">
                                             <div className="text-sm font-medium text-gray-900">
@@ -268,7 +277,7 @@ const SubastaDetalle = ({ subasta: initialSubasta, onClose, onUpdate }) => {
                     </div>
                 )}
             </div>
-            
+
             {/* Imágenes */}
             {subasta.imagenes && subasta.imagenes.length > 0 && (
                 <div>
@@ -288,7 +297,7 @@ const SubastaDetalle = ({ subasta: initialSubasta, onClose, onUpdate }) => {
                     </div>
                 </div>
             )}
-            
+
             {/* Botones de acción */}
             <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
                 <Button variant="secondary" onClick={onClose}>
