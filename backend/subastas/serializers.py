@@ -541,7 +541,7 @@ class HistorialPujaSerializer(serializers.ModelSerializer):
     """Serializer para el historial de pujas del cliente autenticado."""
     
     subasta_id = serializers.IntegerField(source='subasta.id', read_only=True)
-    producto = serializers.CharField(source='subasta.packing_detalle.packing_tipo.tipo_fruta.nombre', read_only=True)
+    producto = serializers.SerializerMethodField()
     tipo = serializers.SerializerMethodField()
     cantidad = serializers.SerializerMethodField()
     unidad = serializers.SerializerMethodField()
@@ -573,9 +573,13 @@ class HistorialPujaSerializer(serializers.ModelSerializer):
             'estado_subasta',
         ]
     
+    def get_producto(self, obj):
+        """Producto siempre es Arándanos."""
+        return "Arándanos"
+    
     def get_tipo(self, obj):
-        """Tipo de producto - por ahora retorna vacío, se puede extender."""
-        return ""
+        """Tipo de arándano (Campo, Descarte Proceso, Campo Congelado, etc.)."""
+        return obj.subasta.packing_detalle.packing_tipo.tipo_fruta.nombre
     
     def get_cantidad(self, obj):
         """Cantidad en kilogramos."""
