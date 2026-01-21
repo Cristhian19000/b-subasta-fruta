@@ -578,17 +578,13 @@ class HistorialPujaSerializer(serializers.ModelSerializer):
         return ""
     
     def get_cantidad(self, obj):
-        """Cantidad con unidad incluida (ej: '1.5 tn', '800 kg')."""
+        """Cantidad en kilogramos."""
         kilos = obj.subasta.packing_detalle.py
-        if kilos >= 1000:
-            toneladas = kilos / 1000
-            return f"{toneladas:.1f} tn"
         return f"{kilos:.0f} kg"
     
     def get_unidad(self, obj):
-        """Unidad de precio (kg o tn)."""
-        kilos = obj.subasta.packing_detalle.py
-        return "tn" if kilos >= 1000 else "kg"
+        """Unidad de precio (siempre kg)."""
+        return "kg"
     
     def get_hora_inicio(self, obj):
         """Hora de inicio en formato HH:MM."""
