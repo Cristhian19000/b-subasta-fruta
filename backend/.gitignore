@@ -4,3 +4,13 @@
 *$py.class
 db.sqlite3
 media/
+
+# Debug/Test scripts temporales
+debug_*.py
+test_*.py
+verificar*.py
+list_*.py
+check_*.py
+*_output.txt
+*_results.txt
+VERIFICACION_ESTADOS.md

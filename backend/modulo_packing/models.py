@@ -152,6 +152,75 @@ class PackingSemanal(models.Model):
         """Actualiza el campo kg_total con el valor calculado."""
         self.kg_total = self.calcular_kg_total()
         self.save(update_fields=['kg_total'])
+    
+    @property
+    def estado_calculado(self):
+        """
+        Calcula el estado dinámicamente basado en las subastas asociadas.
+        
+        Lógica:
+        - Si estado manual es ANULADO → ANULADO (irreversible)
+        - Si hay alguna subasta ACTIVA ahora → EN_SUBASTA
+        - Si todas las subastas están finalizadas/canceladas Y no hay días sin subastar → FINALIZADO
+        - En otro caso → PROYECTADO
+        """
+        from django.utils import timezone
+        from subastas.models import Subasta
+        
+        # Si fue anulado manualmente, respetar ese estado
+        if self.estado == 'ANULADO':
+            return 'ANULADO'
+        
+        # Obtener todos los detalles de packing de esta semana
+        from modulo_packing.models import PackingDetalle
+        detalles_ids = PackingDetalle.objects.filter(
+            packing_tipo__packing_semanal=self
+        ).values_list('id', flat=True)
+        
+        # Obtener todas las subastas asociadas
+        subastas = Subasta.objects.filter(
+            packing_detalle_id__in=detalles_ids
+        )
+        
+        if not subastas.exists():
+            # No hay subastas → PROYECTADO
+            return 'PROYECTADO'
+        
+        # Verificar si hay alguna subasta activa AHORA usando estado_calculado
+        # Esto respeta si la subasta fue cancelada manualmente
+        tiene_activa = any(
+            s.estado_calculado == 'ACTIVA'
+            for s in subastas
+        )
+        
+        if tiene_activa:
+            return 'EN_SUBASTA'
+        
+        # Verificar si todas las subastas están finalizadas/canceladas
+        todas_terminadas = all(
+            s.estado_calculado in ('FINALIZADA', 'CANCELADA')
+            for s in subastas
+        )
+        
+        # Verificar si quedan días sin subastar
+        # (días con producción pero sin subasta)
+        detalles_con_produccion = PackingDetalle.objects.filter(
+            packing_tipo__packing_semanal=self,
+            py__gt=0  # Solo días con producción
+        )
+        
+        detalles_con_subasta = set(subastas.values_list('packing_detalle_id', flat=True))
+        detalles_sin_subasta = detalles_con_produccion.exclude(
+            id__in=detalles_con_subasta
+        )
+        
+        if todas_terminadas and not detalles_sin_subasta.exists():
+            # Todas las subastas terminaron y no quedan días pendientes
+            return 'FINALIZADO'
+        
+        # En cualquier otro caso → PROYECTADO
+        # (puede tener subastas programadas o finalizadas, pero también días pendientes)
+        return 'PROYECTADO'
 
 
 # =============================================================================

@@ -51,11 +51,11 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
     });
     const [creandoSubasta, setCreandoSubasta] = useState(false);
     const [errorSubasta, setErrorSubasta] = useState(null);
-    
+
     // Cargar subastas asociadas a este packing
     useEffect(() => {
         if (!packing?.id) return;
-        
+
         const cargarSubastas = async () => {
             try {
                 const response = await getSubastasPorPacking(packing.id);
@@ -72,10 +72,10 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
                 console.error('Error cargando subastas:', err);
             }
         };
-        
+
         cargarSubastas();
     }, [packing?.id]);
-    
+
     if (!packing) return null;
 
     // Abrir modal para crear subasta
@@ -107,7 +107,7 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
         setDetalleParaSubasta({ ...detalle, tipo_fruta_nombre: tipoFrutaNombre });
         setModoEdicion(true);
         setSubastaEditando(subasta);
-        
+
         // Formatear fecha para el input datetime-local
         const formatDateForInput = (dateStr) => {
             if (!dateStr) return '';
@@ -119,13 +119,13 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
             const minutes = String(date.getMinutes()).padStart(2, '0');
             return `${year}-${month}-${day}T${hours}:${minutes}`;
         };
-        
+
         // Calcular duración en horas
         const inicio = new Date(subasta.fecha_hora_inicio);
         const fin = new Date(subasta.fecha_hora_fin);
         const duracionMs = fin - inicio;
         const duracionHoras = Math.round(duracionMs / (1000 * 60 * 60));
-        
+
         setSubastaForm({
             fecha_hora_inicio: formatDateForInput(subasta.fecha_hora_inicio),
             duracion_horas: duracionHoras.toString(),
@@ -158,12 +158,12 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
         try {
             setCreandoSubasta(true);
             setErrorSubasta(null);
-            
+
             // Calcular fecha fin basándose en duración
             const fechaInicio = new Date(subastaForm.fecha_hora_inicio);
             const duracionMs = parseInt(subastaForm.duracion_horas) * 60 * 60 * 1000;
             const fechaFin = new Date(fechaInicio.getTime() + duracionMs);
-            
+
             // Formatear para enviar al backend
             const formatForBackend = (date) => {
                 const year = date.getFullYear();
@@ -173,23 +173,23 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
                 const minutes = String(date.getMinutes()).padStart(2, '0');
                 return `${year}-${month}-${day}T${hours}:${minutes}`;
             };
-            
+
             await createSubasta({
                 packing_detalle: detalleParaSubasta.id,
                 fecha_hora_inicio: subastaForm.fecha_hora_inicio,
                 fecha_hora_fin: formatForBackend(fechaFin),
                 precio_base: parseFloat(subastaForm.precio_base)
             });
-            
+
             await recargarSubastas();
-            
+
             setShowSubastaModal(false);
             setDetalleParaSubasta(null);
         } catch (err) {
             console.error('Error creando subasta:', err);
-            const errorMsg = err.response?.data?.packing_detalle?.[0] 
+            const errorMsg = err.response?.data?.packing_detalle?.[0]
                 || err.response?.data?.fecha_hora_inicio?.[0]
-                || err.response?.data?.detail 
+                || err.response?.data?.detail
                 || 'Error al crear la subasta';
             setErrorSubasta(errorMsg);
         } finally {
@@ -207,12 +207,12 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
         try {
             setCreandoSubasta(true);
             setErrorSubasta(null);
-            
+
             // Calcular fecha fin basándose en duración
             const fechaInicio = new Date(subastaForm.fecha_hora_inicio);
             const duracionMs = parseInt(subastaForm.duracion_horas) * 60 * 60 * 1000;
             const fechaFin = new Date(fechaInicio.getTime() + duracionMs);
-            
+
             // Formatear para enviar al backend
             const formatForBackend = (date) => {
                 const year = date.getFullYear();
@@ -222,15 +222,15 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
                 const minutes = String(date.getMinutes()).padStart(2, '0');
                 return `${year}-${month}-${day}T${hours}:${minutes}`;
             };
-            
+
             await updateSubasta(subastaEditando.id, {
                 fecha_hora_inicio: subastaForm.fecha_hora_inicio,
                 fecha_hora_fin: formatForBackend(fechaFin),
                 precio_base: parseFloat(subastaForm.precio_base)
             });
-            
+
             await recargarSubastas();
-            
+
             setShowSubastaModal(false);
             setDetalleParaSubasta(null);
             setSubastaEditando(null);
@@ -239,7 +239,7 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
             console.error('Error actualizando subasta:', err);
             const errorMsg = err.response?.data?.fecha_hora_inicio?.[0]
                 || err.response?.data?.fecha_hora_fin?.[0]
-                || err.response?.data?.detail 
+                || err.response?.data?.detail
                 || 'Error al actualizar la subasta';
             setErrorSubasta(errorMsg);
         } finally {
@@ -250,19 +250,19 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
     const formatDate = (dateStr) => {
         if (!dateStr) return '-';
         const date = new Date(dateStr + 'T00:00:00');
-        return date.toLocaleDateString('es-PE', { 
-            weekday: 'long', 
-            day: '2-digit', 
-            month: 'long', 
-            year: 'numeric' 
+        return date.toLocaleDateString('es-PE', {
+            weekday: 'long',
+            day: '2-digit',
+            month: 'long',
+            year: 'numeric'
         });
     };
 
     const formatDateShort = (dateStr) => {
         if (!dateStr) return '-';
         const date = new Date(dateStr + 'T00:00:00');
-        return date.toLocaleDateString('es-PE', { 
-            day: '2-digit', 
+        return date.toLocaleDateString('es-PE', {
+            day: '2-digit',
             month: 'short'
         });
     };
@@ -306,8 +306,8 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
                     </div>
                     <div>
                         <p className="text-xs text-gray-500">Estado</p>
-                        <Badge variant={ESTADO_COLORS[packing.estado] || 'default'}>
-                            {packing.estado_display || packing.estado}
+                        <Badge variant={ESTADO_COLORS[packing.estado_actual || packing.estado] || 'default'}>
+                            {packing.estado_display || packing.estado_actual || packing.estado}
                         </Badge>
                     </div>
                     <div>
@@ -348,7 +348,7 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
                 <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
                     Producción por Tipo de Fruta
                 </h3>
-                
+
                 {packing.tipos && packing.tipos.length > 0 ? (
                     <div className="space-y-4">
                         {packing.tipos.map((tipo) => (
@@ -552,7 +552,7 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
                                     onChange={(e) => setSubastaForm(prev => ({ ...prev, fecha_hora_inicio: e.target.value }))}
                                 />
                             </div>
-                            
+
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Duración de la Subasta *
@@ -568,11 +568,10 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
                                             key={value}
                                             type="button"
                                             onClick={() => setSubastaForm(prev => ({ ...prev, duracion_horas: value }))}
-                                            className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                                                subastaForm.duracion_horas === value
+                                            className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${subastaForm.duracion_horas === value
                                                     ? 'bg-blue-600 text-white border-blue-600'
                                                     : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                                            }`}
+                                                }`}
                                         >
                                             {label}
                                         </button>
@@ -583,9 +582,9 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
                                         Finalizará: {(() => {
                                             const inicio = new Date(subastaForm.fecha_hora_inicio);
                                             const fin = new Date(inicio.getTime() + parseInt(subastaForm.duracion_horas) * 60 * 60 * 1000);
-                                            return fin.toLocaleString('es-PE', { 
+                                            return fin.toLocaleString('es-PE', {
                                                 weekday: 'short',
-                                                day: '2-digit', 
+                                                day: '2-digit',
                                                 month: 'short',
                                                 hour: '2-digit',
                                                 minute: '2-digit'
@@ -594,7 +593,7 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
                                     </p>
                                 )}
                             </div>
-                            
+
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Precio Base (S/) *
@@ -616,12 +615,12 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
                             <Button variant="secondary" onClick={() => setShowSubastaModal(false)}>
                                 Cancelar
                             </Button>
-                            <Button 
-                                onClick={modoEdicion ? handleGuardarSubasta : handleCrearSubasta} 
+                            <Button
+                                onClick={modoEdicion ? handleGuardarSubasta : handleCrearSubasta}
                                 disabled={creandoSubasta}
                             >
-                                {creandoSubasta 
-                                    ? (modoEdicion ? 'Guardando...' : 'Creando...') 
+                                {creandoSubasta
+                                    ? (modoEdicion ? 'Guardando...' : 'Creando...')
                                     : (modoEdicion ? 'Guardar Cambios' : 'Programar Subasta')
                                 }
                             </Button>
@@ -749,11 +748,11 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
                                 Cerrar
                             </Button>
                             {subastaSeleccionada.estado_actual === 'PROGRAMADA' && (
-                                <Button 
+                                <Button
                                     variant="warning"
                                     onClick={() => handleEditarSubasta(
-                                        subastaSeleccionada, 
-                                        subastaSeleccionada.detalle, 
+                                        subastaSeleccionada,
+                                        subastaSeleccionada.detalle,
                                         subastaSeleccionada.tipo_fruta_nombre
                                     )}
                                 >

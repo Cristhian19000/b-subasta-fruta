@@ -98,7 +98,20 @@ class PackingSemanalListSerializer(serializers.ModelSerializer):
     
     empresa_nombre = serializers.CharField(source='empresa.nombre', read_only=True)
     cantidad_tipos = serializers.IntegerField(source='num_tipos', read_only=True)
-    estado_display = serializers.CharField(source='get_estado_display', read_only=True)
+    estado_display = serializers.SerializerMethodField()
+    estado_actual = serializers.CharField(source='estado_calculado', read_only=True)
+    
+    def get_estado_display(self, obj):
+        """Retorna el display name del estado calculado dinámicamente."""
+        estado = obj.estado_calculado
+        # Mapeo manual ya que estado_calculado no es un campo de BD
+        estados = {
+            'PROYECTADO': 'Proyectado',
+            'EN_SUBASTA': 'En Subasta',
+            'FINALIZADO': 'Finalizado',
+            'ANULADO': 'Anulado'
+        }
+        return estados.get(estado, estado)
     
     class Meta:
         model = PackingSemanal
@@ -112,12 +125,14 @@ class PackingSemanalListSerializer(serializers.ModelSerializer):
             'cantidad_tipos',
             'estado',
             'estado_display',
+            'estado_actual',
             'fecha_registro',
         ]
         read_only_fields = ['id', 'total_kg', 'cantidad_tipos', 'fecha_registro']
     
     # Mapear kg_total a total_kg para el frontend
     total_kg = serializers.DecimalField(source='kg_total', max_digits=12, decimal_places=2, read_only=True)
+    estado_actual = serializers.CharField(source='estado_calculado', read_only=True)
 
 
 # =============================================================================
@@ -130,8 +145,20 @@ class PackingSemanalDetailSerializer(serializers.ModelSerializer):
     empresa_nombre = serializers.CharField(source='empresa.nombre', read_only=True)
     tipos = PackingTipoSerializer(many=True, read_only=True)
     imagenes = PackingImagenSerializer(many=True, read_only=True)
-    estado_display = serializers.CharField(source='get_estado_display', read_only=True)
+    estado_display = serializers.SerializerMethodField()
     total_kg = serializers.DecimalField(source='kg_total', max_digits=12, decimal_places=2, read_only=True)
+    estado_actual = serializers.CharField(source='estado_calculado', read_only=True)
+    
+    def get_estado_display(self, obj):
+        """Retorna el display name del estado calculado dinámicamente."""
+        estado = obj.estado_calculado
+        estados = {
+            'PROYECTADO': 'Proyectado',
+            'EN_SUBASTA': 'En Subasta',
+            'FINALIZADO': 'Finalizado',
+            'ANULADO': 'Anulado'
+        }
+        return estados.get(estado, estado)
     
     class Meta:
         model = PackingSemanal
@@ -144,6 +171,7 @@ class PackingSemanalDetailSerializer(serializers.ModelSerializer):
             'total_kg',
             'estado',
             'estado_display',
+            'estado_actual',
             'observaciones',
             'tipos',
             'imagenes',

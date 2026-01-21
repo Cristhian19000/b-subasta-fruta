@@ -397,8 +397,8 @@ const Packing = () => {
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-center">
-                                        <Badge variant={ESTADO_COLORS[packing.estado] || 'default'}>
-                                            {packing.estado_display || packing.estado}
+                                        <Badge variant={ESTADO_COLORS[packing.estado_actual || packing.estado] || 'default'}>
+                                            {packing.estado_display || packing.estado_actual || packing.estado}
                                         </Badge>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
