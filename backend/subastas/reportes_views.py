@@ -519,6 +519,12 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
             bottom=Side(style='thin', color='D3D3D3')
         )
         
+        # --- DEFINIR COLORES DE ESTADO PARA CELDAS DIARIAS ---
+        fill_finalizada = PatternFill(start_color='DDEBF7', end_color='DDEBF7', fill_type='solid') # Azul claro
+        fill_activa = PatternFill(start_color='E2EFDA', end_color='E2EFDA', fill_type='solid')     # Verde claro
+        fill_programada = PatternFill(start_color='FFF2CC', end_color='FFF2CC', fill_type='solid')  # Amarillo claro
+        fill_cancelada = PatternFill(start_color='FCE4D6', end_color='FCE4D6', fill_type='solid')   # Naranja/Rojo claro
+        
         # Título
         ws.merge_cells('A1:L1')
         cell_titulo = ws['A1']
@@ -576,48 +582,61 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
 
             # Si tiene tipos, mostrar cada tipo
             for tipo in tipos:
-                # Obtener kilos por día
+                # Obtener kilos por día y los objetos PackingDetalle
                 detalles_queryset = tipo.detalles.all()
-                detalles_dict = {d.dia: float(d.py) for d in detalles_queryset}
+                detalles_dict = {d.dia: d for d in detalles_queryset}
                 
                 # --- CALCULAR ESTADO ESPECÍFICO PARA ESTE TIPO ---
-                # Buscar todas las subastas asociadas a los días de este tipo de fruta
                 from subastas.models import Subasta
                 subastas_tipo = Subasta.objects.filter(packing_detalle__in=detalles_queryset)
+                estados_list = [s.estado_calculado for s in subastas_tipo]
                 
                 if not subastas_tipo.exists():
                     estado_tipo = "PROYECTADO"
                 else:
-                    # Usar la lógica de 'estado_calculado' para determinar el estado actual
-                    estados_list = [s.estado_calculado for s in subastas_tipo]
-                    
                     if 'ACTIVA' in estados_list:
                         estado_tipo = "EN SUBASTA"
-                    elif all(e in ('FINALIZADA', 'CANCELADA') for e in estados_list):
-                        # Verificar si hay producción pendiente de subastar para este tipo
-                        tiene_pendiente = any(
-                            d.py > 0 and not Subasta.objects.filter(packing_detalle=d).exists()
-                            for d in detalles_queryset
-                        )
-                        estado_tipo = "FINALIZADO" if not tiene_pendiente else "PARCIAL"
+                    elif any(e in ('FINALIZADA', 'CANCELADA') for e in estados_list):
+                        # Se considera FINALIZADO si todos los días con producción tienen subastas 
+                        # Y todas esas subastas están terminadas (Finalizada o Cancelada)
+                        detalles_con_produccion = [d for d in detalles_queryset if d.py > 0]
+                        detalles_con_subasta = [s.packing_detalle_id for s in subastas_tipo]
+                        
+                        todo_cubierto = all(d.id in detalles_con_subasta for d in detalles_con_produccion)
+                        todas_terminadas = all(e in ('FINALIZADA', 'CANCELADA') for e in estados_list)
+                        
+                        if todo_cubierto and todas_terminadas:
+                            estado_tipo = "FINALIZADO"
+                        else:
+                            estado_tipo = "PARCIAL"
+                    elif 'PROGRAMADA' in estados_list:
+                        estado_tipo = "PROGRAMADO"
                     else:
                         estado_tipo = "PROYECTADO"
 
+                if packing.estado == 'ANULADO':
+                    estado_tipo = "ANULADO"
+
+                # Días de la semana para el mapeo
+                dias_semana = ['LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES', 'SABADO']
+                
                 row_data = [
                     packing.empresa.nombre,
                     f"{packing.fecha_inicio_semana.strftime('%d/%m/%Y')} - {packing.fecha_fin_semana.strftime('%d/%m/%Y')}",
                     tipo.tipo_fruta.nombre,
-                    detalles_dict.get('LUNES', 0.0),
-                    detalles_dict.get('MARTES', 0.0),
-                    detalles_dict.get('MIERCOLES', 0.0),
-                    detalles_dict.get('JUEVES', 0.0),
-                    detalles_dict.get('VIERNES', 0.0),
-                    detalles_dict.get('SABADO', 0.0),
-                    float(tipo.kg_total),
-                    estado_tipo,  # Estado calculado específicamente para este tipo
-                    packing.observaciones or ''
                 ]
+                # Llenar los kilos para cada día
+                for d_nom in dias_semana:
+                    row_data.append(float(detalles_dict.get(d_nom).py) if d_nom in detalles_dict else 0.0)
                 
+                # Agregar el resto de campos
+                row_data.extend([
+                    float(tipo.kg_total),
+                    estado_tipo,
+                    packing.observaciones or ''
+                ])
+                
+                # Escribir la fila y aplicar color naranja SOLO a canceladas
                 for col_num, value in enumerate(row_data, 1):
                     cell = ws.cell(row=row_num, column=col_num)
                     cell.value = value
@@ -628,6 +647,19 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
                     # Formato numérico para KGs (Columnas D a J)
                     if 4 <= col_num <= 10:
                         cell.number_format = '#,##0.00'
+                    
+                    # --- APLICAR COLOR NARANJA SOLO SI LA SUBASTA ESTÁ CANCELADA ---
+                    if 4 <= col_num <= 9:
+                        dia_nombre = dias_semana[col_num - 4]
+                        detalle_dia = detalles_dict.get(dia_nombre)
+                        
+                        if detalle_dia and value > 0:
+                            try:
+                                subasta_dia = Subasta.objects.get(packing_detalle=detalle_dia)
+                                if subasta_dia.estado_calculado == 'CANCELADA':
+                                    cell.fill = fill_cancelada
+                            except Subasta.DoesNotExist:
+                                pass 
                 
                 row_num += 1
         
@@ -651,4 +683,3 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         wb.save(response)
         
         return response
-
