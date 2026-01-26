@@ -20,6 +20,7 @@ from openpyxl.utils import get_column_letter
 
 from .models import Subasta, Oferta
 from clientes.models import Cliente
+from modulo_packing.models import PackingSemanal, PackingDetalle
 
 
 class ReporteSubastasViewSet(viewsets.ViewSet):
@@ -317,7 +318,7 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         # TÍTULO DEL REPORTE
         # =====================================================================
         
-        ws.merge_cells('A1:P1')
+        ws.merge_cells('A1:R1')
         cell_titulo = ws['A1']
         cell_titulo.value = "REPORTE DE CLIENTES"
         cell_titulo.font = titulo_font
@@ -340,9 +341,11 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
             'Teléfono 1',
             'Email 1',
             'Contacto 2',
+            'Cargo 2',
             'Teléfono 2',
             'Email 2',
             'Estatus Ficha',
+            'Correo Conf.',
             'Total Ofertas',
             'Subastas Ganadas',
             'Fecha Registro'
@@ -386,9 +389,11 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
                 cliente.numero_1,
                 cliente.correo_electronico_1,
                 cliente.contacto_2 or '',
+                cliente.cargo_2 or '',
                 cliente.numero_2 or '',
                 cliente.correo_electronico_2 or '',
                 cliente.get_estatus_ficha_display(),
+                'Sí' if cliente.confirmacion_correo else 'No',
                 total_ofertas,
                 subastas_ganadas,
                 cliente.fecha_creacion.strftime('%d/%m/%Y')
@@ -419,12 +424,14 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
             'H': 15,  # Teléfono 1
             'I': 30,  # Email 1
             'J': 25,  # Contacto 2
-            'K': 15,  # Teléfono 2
-            'L': 30,  # Email 2
-            'M': 18,  # Estatus Ficha
-            'N': 15,  # Total Ofertas
-            'O': 18,  # Subastas Ganadas
-            'P': 18,  # Fecha Registro
+            'K': 20,  # Cargo 2
+            'L': 15,  # Teléfono 2
+            'M': 30,  # Email 2
+            'N': 18,  # Estatus Ficha
+            'O': 14,  # Correo Conf.
+            'P': 15,  # Total Ofertas
+            'Q': 18,  # Subastas Ganadas
+            'R': 18,  # Fecha Registro
         }
         
         for col_letter, width in column_widths.items():
@@ -435,7 +442,7 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         # =====================================================================
         
         if row_num > 3:  # Solo si hay datos
-            ws.auto_filter.ref = f"A2:P{row_num-1}"
+            ws.auto_filter.ref = f"A2:R{row_num-1}"
         
         # =====================================================================
         # GENERAR RESPUESTA HTTP CON EL ARCHIVO
@@ -455,3 +462,193 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         wb.save(response)
         
         return response
+
+    @action(detail=False, methods=['get'])
+    def packing_excel(self, request):
+        """
+        Genera un reporte Excel profesional de packing (producción).
+        
+        Incluye desglose diario, totales por tipo y estado.
+        """
+        # Parámetros de filtro
+        fecha_inicio_str = request.query_params.get('fecha_inicio', None)
+        fecha_fin_str = request.query_params.get('fecha_fin', None)
+        
+        # Queryset base
+        queryset = PackingSemanal.objects.select_related('empresa').prefetch_related(
+            'tipos', 
+            'tipos__tipo_fruta', 
+            'tipos__detalles'
+        ).order_by('-fecha_inicio_semana', 'empresa__nombre')
+        
+        # Filtros de fecha
+        if fecha_inicio_str:
+            try:
+                fecha_inicio = datetime.strptime(fecha_inicio_str, '%Y-%m-%d').date()
+                queryset = queryset.filter(fecha_inicio_semana__gte=fecha_inicio)
+            except ValueError:
+                return Response({'error': 'Formato fecha_inicio inválido'}, status=400)
+                
+        if fecha_fin_str:
+            try:
+                fecha_fin = datetime.strptime(fecha_fin_str, '%Y-%m-%d').date()
+                queryset = queryset.filter(fecha_inicio_semana__lte=fecha_fin)
+            except ValueError:
+                return Response({'error': 'Formato fecha_fin inválido'}, status=400)
+
+        # Generar Excel
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Reporte de Packing"
+        
+        # Estilos (Estética Naranja Profesional)
+        titulo_font = Font(name='Calibri', size=16, bold=True, color='FFFFFF')
+        titulo_fill = PatternFill(start_color='E46C0A', end_color='E46C0A', fill_type='solid') # Naranja para Packing
+        titulo_alignment = Alignment(horizontal='center', vertical='center')
+        
+        header_font = Font(name='Calibri', size=11, bold=True, color='FFFFFF')
+        header_fill = PatternFill(start_color='ED7D31', end_color='ED7D31', fill_type='solid')
+        header_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        
+        cell_font = Font(name='Calibri', size=10)
+        cell_alignment = Alignment(horizontal='left', vertical='center')
+        cell_border = Border(
+            left=Side(style='thin', color='D3D3D3'),
+            right=Side(style='thin', color='D3D3D3'),
+            top=Side(style='thin', color='D3D3D3'),
+            bottom=Side(style='thin', color='D3D3D3')
+        )
+        
+        # Título
+        ws.merge_cells('A1:L1')
+        cell_titulo = ws['A1']
+        cell_titulo.value = "REPORTE DE PACKING / PRODUCCIÓN"
+        cell_titulo.font = titulo_font
+        cell_titulo.fill = titulo_fill
+        cell_titulo.alignment = titulo_alignment
+        ws.row_dimensions[1].height = 30
+        
+        # Encabezados
+        headers = [
+            'Empresa', 'Semana', 'Tipo Fruta', 
+            'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado',
+            'KG Total', 'Estado', 'Observaciones'
+        ]
+        
+        for col_num, header in enumerate(headers, 1):
+            cell = ws.cell(row=2, column=col_num)
+            cell.value = header
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+            cell.border = cell_border
+        
+        ws.row_dimensions[2].height = 35
+        
+        # Datos
+        row_num = 3
+        for packing in queryset:
+            tipos = packing.tipos.all()
+            
+            # Si el packing no tiene tipos registrados, mostrar una fila base
+            if not tipos:
+                row_data = [
+                    packing.empresa.nombre,
+                    f"{packing.fecha_inicio_semana.strftime('%d/%m/%Y')} - {packing.fecha_fin_semana.strftime('%d/%m/%Y')}",
+                    'Sin producción registrada',
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                    0.0,
+                    packing.get_estado_display(),
+                    packing.observaciones or ''
+                ]
+                
+                for col_num, value in enumerate(row_data, 1):
+                    cell = ws.cell(row=row_num, column=col_num)
+                    cell.value = value
+                    cell.font = cell_font
+                    cell.alignment = cell_alignment
+                    cell.border = cell_border
+                    if 4 <= col_num <= 10:
+                        cell.number_format = '#,##0.00'
+                
+                row_num += 1
+                continue
+
+            # Si tiene tipos, mostrar cada tipo
+            for tipo in tipos:
+                # Obtener kilos por día
+                detalles_queryset = tipo.detalles.all()
+                detalles_dict = {d.dia: float(d.py) for d in detalles_queryset}
+                
+                # --- CALCULAR ESTADO ESPECÍFICO PARA ESTE TIPO ---
+                # Buscar todas las subastas asociadas a los días de este tipo de fruta
+                from subastas.models import Subasta
+                subastas_tipo = Subasta.objects.filter(packing_detalle__in=detalles_queryset)
+                
+                if not subastas_tipo.exists():
+                    estado_tipo = "PROYECTADO"
+                else:
+                    # Usar la lógica de 'estado_calculado' para determinar el estado actual
+                    estados_list = [s.estado_calculado for s in subastas_tipo]
+                    
+                    if 'ACTIVA' in estados_list:
+                        estado_tipo = "EN SUBASTA"
+                    elif all(e in ('FINALIZADA', 'CANCELADA') for e in estados_list):
+                        # Verificar si hay producción pendiente de subastar para este tipo
+                        tiene_pendiente = any(
+                            d.py > 0 and not Subasta.objects.filter(packing_detalle=d).exists()
+                            for d in detalles_queryset
+                        )
+                        estado_tipo = "FINALIZADO" if not tiene_pendiente else "PARCIAL"
+                    else:
+                        estado_tipo = "PROYECTADO"
+
+                row_data = [
+                    packing.empresa.nombre,
+                    f"{packing.fecha_inicio_semana.strftime('%d/%m/%Y')} - {packing.fecha_fin_semana.strftime('%d/%m/%Y')}",
+                    tipo.tipo_fruta.nombre,
+                    detalles_dict.get('LUNES', 0.0),
+                    detalles_dict.get('MARTES', 0.0),
+                    detalles_dict.get('MIERCOLES', 0.0),
+                    detalles_dict.get('JUEVES', 0.0),
+                    detalles_dict.get('VIERNES', 0.0),
+                    detalles_dict.get('SABADO', 0.0),
+                    float(tipo.kg_total),
+                    estado_tipo,  # Estado calculado específicamente para este tipo
+                    packing.observaciones or ''
+                ]
+                
+                for col_num, value in enumerate(row_data, 1):
+                    cell = ws.cell(row=row_num, column=col_num)
+                    cell.value = value
+                    cell.font = cell_font
+                    cell.alignment = cell_alignment
+                    cell.border = cell_border
+                    
+                    # Formato numérico para KGs (Columnas D a J)
+                    if 4 <= col_num <= 10:
+                        cell.number_format = '#,##0.00'
+                
+                row_num += 1
+        
+        # Anchos
+        column_widths = {
+            'A': 25, 'B': 25, 'C': 20, 
+            'D': 10, 'E': 10, 'F': 10, 'G': 10, 'H': 10, 'I': 10,
+            'J': 15, 'K': 15, 'L': 40
+        }
+        for col_letter, width in column_widths.items():
+            ws.column_dimensions[col_letter].width = width
+            
+        if row_num > 3:
+            ws.auto_filter.ref = f"A2:L{row_num-1}"
+            
+        timestamp = timezone.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"reporte_packing_{timestamp}.xlsx"
+        
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        wb.save(response)
+        
+        return response
+
