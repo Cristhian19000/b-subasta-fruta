@@ -14,6 +14,7 @@ import { Clientes } from './pages/clientes';
 import { Usuarios } from './pages/usuarios';
 import { Packing, Empresas, TiposFruta } from './pages/packing';
 import { Subastas } from './pages/subastas';
+import { Reportes } from './pages/reportes';
 import './index.css';
 
 function App() {
@@ -23,7 +24,7 @@ function App() {
                 <Routes>
                     {/* Ruta pública: Login */}
                     <Route path="/login" element={<Login />} />
-                    
+
                     {/* Rutas protegidas: Dashboard con Layout */}
                     <Route path="/dashboard" element={
                         <ProtectedRoute>
@@ -32,16 +33,16 @@ function App() {
                     }>
                         {/* Página de inicio */}
                         <Route index element={<Home />} />
-                        
+
                         {/* Módulo de clientes (todos) */}
                         <Route path="clientes" element={<Clientes />} />
-                        
+
                         {/* Módulo de packing (todos) */}
                         <Route path="packing" element={<Packing />} />
-                        
+
                         {/* Módulo de subastas (todos) */}
                         <Route path="subastas" element={<Subastas />} />
-                        
+
                         {/* Catálogos de packing (solo admin) */}
                         <Route path="empresas" element={
                             <ProtectedRoute requireAdmin>
@@ -53,7 +54,14 @@ function App() {
                                 <TiposFruta />
                             </ProtectedRoute>
                         } />
-                        
+
+                        {/* Módulo de reportes (solo admin) */}
+                        <Route path="reportes" element={
+                            <ProtectedRoute requireAdmin>
+                                <Reportes />
+                            </ProtectedRoute>
+                        } />
+
                         {/* Módulo de usuarios (solo admin) */}
                         <Route path="usuarios" element={
                             <ProtectedRoute requireAdmin>
@@ -61,7 +69,7 @@ function App() {
                             </ProtectedRoute>
                         } />
                     </Route>
-                    
+
                     {/* Redirección por defecto */}
                     <Route path="*" element={<Navigate to="/login" replace />} />
                 </Routes>

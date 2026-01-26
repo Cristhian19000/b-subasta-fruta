@@ -17,11 +17,13 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
 from .views import SubastaViewSet, OfertaViewSet, SubastaMovilViewSet, PujaMovilViewSet
+from .reportes_views import ReporteSubastasViewSet
 
 # Router para el panel administrativo
 router_admin = DefaultRouter()
 router_admin.register(r'subastas', SubastaViewSet, basename='admin-subasta')
 router_admin.register(r'ofertas', OfertaViewSet, basename='admin-oferta')
+router_admin.register(r'reportes/subastas', ReporteSubastasViewSet, basename='admin-reporte-subastas')
 
 # Router para la app móvil - Subastas
 router_movil = DefaultRouter()
