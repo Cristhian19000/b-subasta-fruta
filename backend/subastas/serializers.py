@@ -293,6 +293,11 @@ class SubastaMovilListSerializer(serializers.ModelSerializer):
     descripcion = serializers.SerializerMethodField()
     unidad = serializers.SerializerMethodField()
     
+    # Campos de participación del usuario
+    mi_ultima_puja = serializers.SerializerMethodField()
+    estoy_participando = serializers.SerializerMethodField()
+    estoy_ganando = serializers.SerializerMethodField()
+    
     class Meta:
         model = Subasta
         fields = [
@@ -312,6 +317,9 @@ class SubastaMovilListSerializer(serializers.ModelSerializer):
             'estado',
             'descripcion',
             'unidad',
+            'mi_ultima_puja',
+            'estoy_participando',
+            'estoy_ganando',
         ]
     
     def get_producto(self, obj):
@@ -387,6 +395,29 @@ class SubastaMovilListSerializer(serializers.ModelSerializer):
     def get_unidad(self, obj):
         """Unidad de medida."""
         return "kg"
+    
+    def get_mi_ultima_puja(self, obj):
+        """Última puja del cliente autenticado en esta subasta."""
+        request = self.context.get('request')
+        if request and hasattr(request, 'user') and request.user:
+            cliente = request.user
+            if hasattr(cliente, 'id'):
+                mi_puja = obj.ofertas.filter(cliente_id=cliente.id).order_by('-monto').first()
+                if mi_puja:
+                    return float(mi_puja.monto)
+        return None
+    
+    def get_estoy_participando(self, obj):
+        """Indica si el cliente autenticado tiene al menos una puja en esta subasta."""
+        return self.get_mi_ultima_puja(obj) is not None
+    
+    def get_estoy_ganando(self, obj):
+        """Indica si el cliente autenticado tiene la puja más alta (está ganando)."""
+        mi_puja = self.get_mi_ultima_puja(obj)
+        if not mi_puja:
+            return False
+        # Comparar con el precio actual (que es la puja más alta)
+        return mi_puja >= float(obj.precio_actual)
 
 
 class SubastaMovilDetailSerializer(serializers.ModelSerializer):
