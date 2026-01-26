@@ -195,10 +195,21 @@ const Subastas = () => {
         },
         {
             key: 'precio_actual',
-            title: 'Precio Actual',
-            render: (_, row) => (
-                <span className="font-bold text-green-600">{formatCurrency(row.precio_actual)}</span>
-            )
+            title: 'Precio',
+            render: (_, row) => {
+                const isFinalizada = row.estado_actual === 'FINALIZADA';
+                const label = isFinalizada ? 'Precio Final' : 'Precio Actual';
+                return (
+                    <div>
+                        <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">
+                            {label}
+                        </div>
+                        <div className="font-semibold text-gray-900">
+                            {formatCurrency(row.precio_actual)}
+                        </div>
+                    </div>
+                );
+            }
         },
         {
             key: 'estado_actual',
@@ -224,17 +235,27 @@ const Subastas = () => {
         },
         {
             key: 'cliente_ganando',
-            title: 'Ganando',
-            render: (_, row) => row.cliente_ganando ? (
-                <div className="text-xs">
-                    <div className="font-medium text-gray-900 truncate max-w-32">
-                        {row.cliente_ganando.nombre}
+            title: 'Posición',
+            render: (_, row) => {
+                const isFinalizada = row.estado_actual === 'FINALIZADA';
+                const label = isFinalizada ? 'Ganador' : 'Ganando';
+
+                return row.cliente_ganando ? (
+                    <div className="text-xs">
+                        <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">
+                            {label}
+                        </div>
+                        <div className="font-medium text-gray-900 truncate max-w-32">
+                            {row.cliente_ganando.nombre}
+                        </div>
+                        <div className="text-gray-600 text-[11px]">
+                            {formatCurrency(row.cliente_ganando.monto)}
+                        </div>
                     </div>
-                    <div className="text-green-600">{formatCurrency(row.cliente_ganando.monto)}</div>
-                </div>
-            ) : (
-                <span className="text-gray-400 text-xs">Sin ofertas</span>
-            )
+                ) : (
+                    <span className="text-gray-400 text-xs">Sin ofertas</span>
+                );
+            }
         },
         {
             key: 'actions',

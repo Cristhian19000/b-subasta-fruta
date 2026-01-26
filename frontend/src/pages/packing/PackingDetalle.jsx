@@ -38,6 +38,7 @@ const SUBASTA_LABELS = {
 
 const PackingDetalle = ({ packing, onClose, onEdit }) => {
     const [subastas, setSubastas] = useState({});
+    const [loadingSubastas, setLoadingSubastas] = useState(true); // Nuevo estado de carga
     const [showSubastaModal, setShowSubastaModal] = useState(false);
     const [showDetalleSubastaModal, setShowDetalleSubastaModal] = useState(false);
     const [subastaSeleccionada, setSubastaSeleccionada] = useState(null);
@@ -58,6 +59,7 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
 
         const cargarSubastas = async () => {
             try {
+                setLoadingSubastas(true);
                 const response = await getSubastasPorPacking(packing.id);
                 // Manejar respuesta paginada o array directo
                 const data = response.data?.results || response.data || [];
@@ -70,6 +72,8 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
                 setSubastas(subastasMap);
             } catch (err) {
                 console.error('Error cargando subastas:', err);
+            } finally {
+                setLoadingSubastas(false);
             }
         };
 
@@ -409,7 +413,13 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
                                                             )}
                                                         </td>
                                                         <td className="px-4 py-2 text-center">
-                                                            {subasta ? (
+                                                            {loadingSubastas ? (
+                                                                // Skeleton loading: muestra el mismo diseño pero animado
+                                                                <div className="flex items-center justify-center gap-1">
+                                                                    <div className="h-8 w-16 bg-gray-200 rounded animate-pulse"></div>
+                                                                    <div className="h-8 w-16 bg-gray-200 rounded animate-pulse"></div>
+                                                                </div>
+                                                            ) : subasta ? (
                                                                 <div className="flex items-center justify-center gap-1">
                                                                     <Button
                                                                         size="sm"
@@ -569,8 +579,8 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
                                             type="button"
                                             onClick={() => setSubastaForm(prev => ({ ...prev, duracion_horas: value }))}
                                             className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${subastaForm.duracion_horas === value
-                                                    ? 'bg-blue-600 text-white border-blue-600'
-                                                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                                ? 'bg-blue-600 text-white border-blue-600'
+                                                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
                                                 }`}
                                         >
                                             {label}
