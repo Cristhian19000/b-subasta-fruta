@@ -61,6 +61,13 @@ const StatusDonutWidget = ({ title, data, loading = false, colorScheme = 'blue',
     const fallbackColors = schemes[colorScheme] || schemes.blue;
     const getCellColor = (name, index) => statusColors[name] || fallbackColors[index % fallbackColors.length];
 
+    // Formatear números grandes (ej: 1.5k)
+    const formatNumber = (num) => {
+        if (num >= 1000000) return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+        if (num >= 1000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+        return num;
+    };
+
     const CustomTooltip = ({ active, payload }) => {
         if (active && payload && payload.length) {
             return (
@@ -89,16 +96,17 @@ const StatusDonutWidget = ({ title, data, loading = false, colorScheme = 'blue',
                 </div>
             </div>
 
-            <div className="flex-1 min-h-[180px] w-full relative">
+            <div className="flex-1 min-h-[160px] w-full relative">
                 {chartData.length > 0 && isMounted ? (
-                    <ResponsiveContainer width="100%" height={180}>
-                        <PieChart>
+                    <>
+                        <ResponsiveContainer width="100%" height={220}>
+                            <PieChart>
                                 <Pie
                                     data={chartData}
                                     cx="50%"
                                     cy="50%"
-                                    innerRadius={45}
-                                    outerRadius={65}
+                                    innerRadius={50}
+                                    outerRadius={75}
                                     paddingAngle={5}
                                     dataKey="value"
                                     stroke="none"
@@ -113,26 +121,31 @@ const StatusDonutWidget = ({ title, data, loading = false, colorScheme = 'blue',
                                         verticalAlign="bottom"
                                         height={36}
                                         iconType="circle"
-                                        formatter={(value) => <span className="text-xs font-medium text-gray-600 uppercase">{value}</span>}
+                                        formatter={(value) => <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-tight">{value}</span>}
                                     />
                                 )}
                             </PieChart>
-                    </ResponsiveContainer>
+                        </ResponsiveContainer>
+
+                        {/* Indicador central */}
+                        <div className="absolute top-[40%] left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
+                            <div className="text-xl font-black text-gray-900 leading-none">
+                                {formatNumber(data.TOTAL || 0)}
+                            </div>
+                            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">
+                                Total
+                            </div>
+                        </div>
+                    </>
                 ) : chartData.length > 0 ? (
-                    <div className="h-[180px] w-full" />
+                    <div className="h-[220px] w-full" />
                 ) : (
-                    <div className="h-[180px] flex flex-col items-center justify-center text-gray-400">
+                    <div className="h-[220px] flex flex-col items-center justify-center text-gray-400">
                         <p className="text-sm italic">Sin datos registrados</p>
                     </div>
                 )}
             </div>
 
-            {data.TOTAL !== undefined && (
-                <div className="mt-2 pt-2 border-t border-gray-50 flex justify-between items-center text-xs text-gray-500">
-                    <span>Total:</span>
-                    <span className="font-bold text-gray-900">{data.TOTAL}</span>
-                </div>
-            )}
         </div>
     );
 };
