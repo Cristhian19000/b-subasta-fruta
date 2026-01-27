@@ -138,6 +138,19 @@ const SubastaDetalle = ({ subasta: initialSubasta, onClose, onUpdate }) => {
                         </div>
                     </div>
                 )}
+
+                {subasta.estado_actual === 'PROGRAMADA' && (
+                    <Button
+                        variant="warning"
+                        onClick={() => {
+                            onClose(); // Cerrar detalle
+                            // Necesitamos una forma de decirle al padre que abra el edit
+                            if (window.handleOpenEdit) window.handleOpenEdit(subasta);
+                        }}
+                    >
+                        Editar Programación
+                    </Button>
+                )}
             </div>
 
             {/* Información del producto */}

@@ -11,7 +11,8 @@ import { Button, Badge, Table, Modal, Input, Select, Alert } from '../../compone
 import { getSubastas, getResumenSubastas, actualizarEstadosSubastas, cancelarSubasta } from '../../api/subastas';
 import SubastaDetalle from './SubastaDetalle';
 import SubastaForm from './SubastaForm';
-import { Circle, Clock, Flag, RefreshCw } from 'lucide-react';
+import SubastaEditForm from './SubastaEditForm';
+import { Circle, Clock, Flag, RefreshCw, Edit2 } from 'lucide-react';
 
 // Colores para estados de subasta
 const ESTADO_COLORS = {
@@ -45,6 +46,7 @@ const Subastas = () => {
     const [selectedSubasta, setSelectedSubasta] = useState(null);
     const [showDetalle, setShowDetalle] = useState(false);
     const [showForm, setShowForm] = useState(false);
+    const [showEditForm, setShowEditForm] = useState(false);
 
     // Cargar datos
     const cargarDatos = useCallback(async () => {
@@ -106,13 +108,25 @@ const Subastas = () => {
         setShowDetalle(true);
     };
 
-    const handleNuevaSubasta = () => {
-        setSelectedSubasta(null);
-        setShowForm(true);
-    };
 
     const handleSubastaCreada = () => {
         setShowForm(false);
+        cargarDatos();
+    };
+
+    const handleEditar = (subasta) => {
+        setSelectedSubasta(subasta);
+        setShowEditForm(true);
+    };
+
+    // Hacer disponible globalmente para que SubastaDetalle pueda dispararlo
+    useEffect(() => {
+        window.handleOpenEdit = handleEditar;
+        return () => { delete window.handleOpenEdit; };
+    }, []);
+
+    const handleSubastaEditada = () => {
+        setShowEditForm(false);
         cargarDatos();
     };
 
@@ -279,14 +293,26 @@ const Subastas = () => {
                         size="sm"
                         variant="secondary"
                         onClick={() => handleVerDetalle(row)}
+                        title="Ver detalle"
                     >
                         Ver
                     </Button>
+                    {row.estado_actual === 'PROGRAMADA' && (
+                        <Button
+                            size="sm"
+                            variant="warning"
+                            onClick={() => handleEditar(row)}
+                            title="Editar programación"
+                        >
+                            <Edit2 className="w-3 h-3" />
+                        </Button>
+                    )}
                     {row.estado_actual !== 'FINALIZADA' && row.estado_actual !== 'CANCELADA' && (
                         <Button
                             size="sm"
                             variant="danger"
                             onClick={() => handleCancelar(row)}
+                            title="Cancelar subasta"
                         >
                             Cancelar
                         </Button>
@@ -304,9 +330,7 @@ const Subastas = () => {
                     <h1 className="text-2xl font-bold text-gray-900">Subastas</h1>
                     <p className="text-gray-500">Gestión de subastas de producción diaria</p>
                 </div>
-                <Button onClick={handleNuevaSubasta}>
-                    + Nueva Subasta
-                </Button>
+
             </div>
 
             {/* Resumen de estados */}
@@ -399,7 +423,7 @@ const Subastas = () => {
                 )}
             </Modal>
 
-            {/* Modal de Formulario */}
+            {/* Modal de Formulario de Creación */}
             <Modal
                 isOpen={showForm}
                 onClose={() => setShowForm(false)}
@@ -410,6 +434,22 @@ const Subastas = () => {
                     onSuccess={handleSubastaCreada}
                     onCancel={() => setShowForm(false)}
                 />
+            </Modal>
+
+            {/* Modal de Formulario de Edición */}
+            <Modal
+                isOpen={showEditForm}
+                onClose={() => setShowEditForm(false)}
+                title="Editar Subasta Programada"
+                size="md"
+            >
+                {selectedSubasta && (
+                    <SubastaEditForm
+                        subasta={selectedSubasta}
+                        onSuccess={handleSubastaEditada}
+                        onCancel={() => setShowEditForm(false)}
+                    />
+                )}
             </Modal>
         </div>
     );
