@@ -18,6 +18,7 @@ from rest_framework.routers import DefaultRouter
 
 from .views import SubastaViewSet, OfertaViewSet, SubastaMovilViewSet, PujaMovilViewSet
 from .reportes_views import ReporteSubastasViewSet
+from .dashboard_views import DashboardViewSet
 
 # Router para el panel administrativo
 router_admin = DefaultRouter()
@@ -33,9 +34,17 @@ router_movil.register(r'subastas', SubastaMovilViewSet, basename='subasta')
 router_pujas = DefaultRouter()
 router_pujas.register(r'pujas', PujaMovilViewSet, basename='puja')
 
+# Router para el dashboard
+router_dashboard = DefaultRouter()
+router_dashboard.register(r'', DashboardViewSet, basename='dashboard')
+
 urlpatterns = [
     # Endpoints del panel administrativo
     path('admin/', include(router_admin.urls)),
+    
+    # Endpoints para el dashboard
+    # Prefijo: /api/subastas/dashboard/
+    path('subastas/dashboard/', include(router_dashboard.urls)),
     
     # Endpoints para la app móvil (formato exacto esperado)
     # GET /api/subastas/ y GET /api/subastas/{id}/

@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Button, Badge, Table, Modal, Input, Select, Alert } from '../../components/common';
 import { getSubastas, getResumenSubastas, actualizarEstadosSubastas, cancelarSubasta } from '../../api/subastas';
 import SubastaDetalle from './SubastaDetalle';
@@ -29,6 +30,8 @@ const ESTADO_LABELS = {
 };
 
 const Subastas = () => {
+    const location = useLocation();
+
     // Estados
     const [subastas, setSubastas] = useState([]);
     const [resumen, setResumen] = useState(null);
@@ -59,15 +62,25 @@ const Subastas = () => {
 
             // Manejar respuesta paginada o array directo
             const subastasData = subastasRes.data?.results || subastasRes.data || [];
-            setSubastas(Array.isArray(subastasData) ? subastasData : []);
+            const subastasArray = Array.isArray(subastasData) ? subastasData : [];
+            setSubastas(subastasArray);
             setResumen(resumenRes.data);
+
+            // Verificar si venimos del dashboard con un ID para abrir automáticamente
+            if (location.state?.openSubastaId) {
+                const subastaDeepLink = subastasArray.find(s => s.id === location.state.openSubastaId);
+                if (subastaDeepLink) {
+                    setSelectedSubasta(subastaDeepLink);
+                    setShowDetalle(true);
+                }
+            }
         } catch (err) {
             console.error('Error cargando subastas:', err);
             setError('Error al cargar las subastas');
         } finally {
             setLoading(false);
         }
-    }, [filtroEstado]);
+    }, [filtroEstado, location.state]);
 
     useEffect(() => {
         cargarDatos();

@@ -3,6 +3,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../../api/axios';
 import { Button, Alert, Modal, Badge } from '../../components/common';
 import ClienteForm from './ClienteForm';
@@ -27,6 +28,8 @@ const initialFormData = {
 };
 
 const Clientes = () => {
+    const navigate = useNavigate();
+    const location = useLocation();
     const [clientes, setClientes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -40,8 +43,18 @@ const Clientes = () => {
     const [formErrors, setFormErrors] = useState({});
 
     useEffect(() => {
-        fetchClientes();
-    }, []);
+        const init = async () => {
+            await fetchClientes();
+
+            // Lógica de Deep Link desde el Dashboard
+            if (location.state?.openClienteId) {
+                handleView(location.state.openClienteId);
+                // Limpiar el estado para no reabrir en refrescos
+                navigate(location.pathname, { replace: true, state: {} });
+            }
+        };
+        init();
+    }, [location.state, navigate, location.pathname]);
 
     const fetchClientes = async () => {
         try {
