@@ -315,3 +315,50 @@ class ClienteViewSet(viewsets.ModelViewSet):
             'numero_2': cliente.numero_2,
             'correo_electronico_2': cliente.correo_electronico_2,
         }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['get'], url_path='subasta-stats')
+    def subasta_stats(self, request, pk=None):
+        """
+        Devuelve estadísticas de participación del cliente en subastas.
+
+        Endpoint: GET /api/clientes/{id}/subasta-stats/
+
+        Retorna:
+            - total_ofertas: número total de ofertas realizadas
+            - subastas_participadas: número de subastas distintas donde participó
+            - subastas_ganadas: número de subastas ganadas (oferta ganadora en subasta finalizada)
+            - subastas_perdidas: participadas - ganadas
+            - monto_promedio: promedio de monto ofertado
+            - monto_maximo: mayor oferta realizada
+            - ultima_participacion: fecha de la última oferta (ISO)
+        """
+        try:
+            cliente = self.get_object()
+        except Cliente.DoesNotExist:
+            return Response({'error': 'Cliente no encontrado'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Importar aquí para evitar posibles importaciones cíclicas al cargar los módulos
+        from subastas.models import Oferta
+        from django.db.models import Avg, Max
+
+        total_ofertas = Oferta.objects.filter(cliente=cliente).count()
+        subastas_participadas = Oferta.objects.filter(cliente=cliente).values('subasta').distinct().count()
+        subastas_ganadas = Oferta.objects.filter(cliente=cliente, es_ganadora=True, subasta__estado='FINALIZADA').count()
+        subastas_perdidas = max(0, subastas_participadas - subastas_ganadas)
+
+        agg = Oferta.objects.filter(cliente=cliente).aggregate(monto_promedio=Avg('monto'), monto_maximo=Max('monto'))
+        monto_promedio = agg.get('monto_promedio') or 0
+        monto_maximo = agg.get('monto_maximo') or 0
+
+        ultima = Oferta.objects.filter(cliente=cliente).order_by('-fecha_oferta').first()
+        ultima_participacion = ultima.fecha_oferta.isoformat() if ultima else None
+
+        return Response({
+            'total_ofertas': total_ofertas,
+            'subastas_participadas': subastas_participadas,
+            'subastas_ganadas': subastas_ganadas,
+            'subastas_perdidas': subastas_perdidas,
+            'monto_promedio': float(monto_promedio),
+            'monto_maximo': float(monto_maximo),
+            'ultima_participacion': ultima_participacion,
+        })

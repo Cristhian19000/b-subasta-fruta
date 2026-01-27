@@ -11,7 +11,7 @@ import {
 /**
  * StatusDonutWidget - Muestra un resumen de estados en un gráfico de dona.
  */
-const StatusDonutWidget = ({ title, data, loading = false, colorScheme = 'blue', icon }) => {
+const StatusDonutWidget = ({ title, data, loading = false, colorScheme = 'blue', icon, showLegend = true }) => {
     const [isMounted, setIsMounted] = React.useState(false);
 
     React.useEffect(() => {
@@ -108,12 +108,14 @@ const StatusDonutWidget = ({ title, data, loading = false, colorScheme = 'blue',
                                     ))}
                                 </Pie>
                                 <Tooltip content={<CustomTooltip />} />
-                                <Legend
-                                    verticalAlign="bottom"
-                                    height={36}
-                                    iconType="circle"
-                                    formatter={(value) => <span className="text-xs font-medium text-gray-600 uppercase">{value}</span>}
-                                />
+                                {showLegend && (
+                                    <Legend
+                                        verticalAlign="bottom"
+                                        height={36}
+                                        iconType="circle"
+                                        formatter={(value) => <span className="text-xs font-medium text-gray-600 uppercase">{value}</span>}
+                                    />
+                                )}
                             </PieChart>
                     </ResponsiveContainer>
                 ) : chartData.length > 0 ? (

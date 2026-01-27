@@ -110,7 +110,7 @@ const Packing = () => {
             setLoading(true);
             const [packingsRes, empresasRes, tiposFrutaRes] = await Promise.all([
                 api.get('/packing-semanal/'),
-                api.get('/empresas/'),
+                api.get('/empresas/', { params: { activo: true } }),
                 api.get('/tipos-fruta/'),
             ]);
             const data = packingsRes.data.results || packingsRes.data;
@@ -164,6 +164,18 @@ const Packing = () => {
             setSelectedPacking(response.data);
             setModalMode('edit');
             setShowModal(true);
+            // Si la empresa del packing está desactivada y no está en la lista,
+            // cargarla para que aparezca en el select durante la edición.
+            const empresaId = response.data.empresa;
+            if (empresaId && !empresas.some(e => e.id === empresaId)) {
+                try {
+                    const empresaRes = await api.get(`/empresas/${empresaId}/`);
+                    setEmpresas(prev => [...prev, empresaRes.data]);
+                } catch (err) {
+                    // No bloquear la edición si no se puede cargar la empresa
+                    console.warn('No se pudo cargar la empresa desactivada:', err);
+                }
+            }
         } catch (err) {
             setError('Error al cargar el packing');
         }

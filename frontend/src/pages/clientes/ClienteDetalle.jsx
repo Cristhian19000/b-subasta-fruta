@@ -2,9 +2,32 @@
  * Vista de detalle del Cliente - Solo lectura.
  */
 
+import { useState, useEffect } from 'react';
+import api from '../../api/axios';
 import { Button } from '../../components/common';
 
 const ClienteDetalle = ({ cliente, onEdit, onClose }) => {
+    const [stats, setStats] = useState(null);
+    const [loadingStats, setLoadingStats] = useState(false);
+    const [errorStats, setErrorStats] = useState('');
+
+    useEffect(() => {
+        const fetchStats = async () => {
+            if (!cliente?.id) return;
+            try {
+                setLoadingStats(true);
+                setErrorStats('');
+                const res = await api.get(`/clientes/${cliente.id}/subasta-stats/`);
+                setStats(res.data);
+            } catch (err) {
+                setErrorStats('Error al cargar estadísticas');
+            } finally {
+                setLoadingStats(false);
+            }
+        };
+        fetchStats();
+    }, [cliente]);
+
     return (
         <div className="space-y-6">
             <div>
@@ -111,6 +134,48 @@ const ClienteDetalle = ({ cliente, onEdit, onClose }) => {
                 <Button onClick={onEdit}>
                     Editar
                 </Button>
+            </div>
+
+            <div className="mt-6 bg-gray-50 p-4 rounded-md border border-gray-100">
+                <h4 className="text-sm font-medium text-gray-600 uppercase tracking-wide mb-3">Estadísticas de Subastas</h4>
+                {loadingStats ? (
+                    <div className="text-sm text-gray-500">Cargando estadísticas...</div>
+                ) : errorStats ? (
+                    <div className="text-sm text-red-600">{errorStats}</div>
+                ) : stats ? (
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div className="bg-white p-3 rounded shadow-sm">
+                            <div className="text-xs text-gray-500">Total de ofertas</div>
+                            <div className="text-lg font-semibold">{stats.total_ofertas}</div>
+                        </div>
+                        <div className="bg-white p-3 rounded shadow-sm">
+                            <div className="text-xs text-gray-500">Subastas participadas</div>
+                            <div className="text-lg font-semibold">{stats.subastas_participadas}</div>
+                        </div>
+                        <div className="bg-white p-3 rounded shadow-sm">
+                            <div className="text-xs text-gray-500">Subastas ganadas</div>
+                            <div className="text-lg font-semibold">{stats.subastas_ganadas}</div>
+                        </div>
+                        <div className="bg-white p-3 rounded shadow-sm">
+                            <div className="text-xs text-gray-500">Subastas perdidas</div>
+                            <div className="text-lg font-semibold">{stats.subastas_perdidas}</div>
+                        </div>
+                        <div className="bg-white p-3 rounded shadow-sm">
+                            <div className="text-xs text-gray-500">Monto promedio</div>
+                            <div className="text-lg font-semibold">S/ {parseFloat(stats.monto_promedio || 0).toFixed(2)}</div>
+                        </div>
+                        <div className="bg-white p-3 rounded shadow-sm">
+                            <div className="text-xs text-gray-500">Monto máximo</div>
+                            <div className="text-lg font-semibold">S/ {parseFloat(stats.monto_maximo || 0).toFixed(2)}</div>
+                        </div>
+                        <div className="col-span-2 bg-white p-3 rounded shadow-sm">
+                            <div className="text-xs text-gray-500">Última participación</div>
+                            <div className="text-sm">{stats.ultima_participacion ? new Date(stats.ultima_participacion).toLocaleString() : '—'}</div>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="text-sm text-gray-500">Sin estadísticas disponibles</div>
+                )}
             </div>
         </div>
     );
