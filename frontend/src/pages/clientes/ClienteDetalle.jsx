@@ -156,7 +156,11 @@ const ClienteDetalle = ({ cliente, onEdit, onClose }) => {
                             <div className="text-xs text-gray-500">Subastas ganadas</div>
                             <div className="text-lg font-semibold">{stats.subastas_ganadas}</div>
                         </div>
-                        <div className="bg-white p-3 rounded shadow-sm">
+                        <div className="bg-white p-3 rounded shadow-sm text-blue-600 border border-blue-50">
+                            <div className="text-xs text-gray-500">Subastas en curso</div>
+                            <div className="text-lg font-semibold">{stats.subastas_en_curso}</div>
+                        </div>
+                        <div className="bg-white p-3 rounded shadow-sm text-red-600 border border-red-50">
                             <div className="text-xs text-gray-500">Subastas perdidas</div>
                             <div className="text-lg font-semibold">{stats.subastas_perdidas}</div>
                         </div>

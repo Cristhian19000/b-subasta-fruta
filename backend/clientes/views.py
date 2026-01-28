@@ -11,6 +11,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.utils import timezone
 from .models import Cliente
 from .serializers import ClienteSerializer, ClienteListSerializer, ClienteLoginSerializer
 
@@ -338,26 +339,56 @@ class ClienteViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Cliente no encontrado'}, status=status.HTTP_404_NOT_FOUND)
 
         # Importar aquí para evitar posibles importaciones cíclicas al cargar los módulos
-        from subastas.models import Oferta
+        from subastas.models import Oferta, Subasta
         from django.db.models import Avg, Max
 
-        total_ofertas = Oferta.objects.filter(cliente=cliente).count()
-        subastas_participadas = Oferta.objects.filter(cliente=cliente).values('subasta').distinct().count()
-        subastas_ganadas = Oferta.objects.filter(cliente=cliente, es_ganadora=True, subasta__estado='FINALIZADA').count()
-        subastas_perdidas = max(0, subastas_participadas - subastas_ganadas)
-
-        agg = Oferta.objects.filter(cliente=cliente).aggregate(monto_promedio=Avg('monto'), monto_maximo=Max('monto'))
+        ahora = timezone.now()
+        
+        # Base queryset para ofertas del cliente en subastas NO canceladas
+        # Excluimos canceladas de todo el cálculo
+        ofertas_validas = Oferta.objects.filter(cliente=cliente).exclude(subasta__estado='CANCELADA')
+        
+        # 1. Conteos generales
+        total_ofertas = ofertas_validas.count()
+        
+        # IDs de subastas donde ha participado
+        ids_subastas = ofertas_validas.values_list('subasta_id', flat=True).distinct()
+        subastas_donde_participo = Subasta.objects.filter(id__in=ids_subastas).exclude(estado='CANCELADA')
+        
+        # 2. Desglose por estado de tiempo
+        # Subastas que ya terminaron
+        finalizadas_ids = subastas_donde_participo.filter(fecha_hora_fin__lt=ahora).values_list('id', flat=True)
+        # Subastas que están corriendo actualmente
+        activas_ids = subastas_donde_participo.filter(fecha_hora_inicio__lte=ahora, fecha_hora_fin__gte=ahora).values_list('id', flat=True)
+        
+        # 3. Cálculo de resultados
+        # Ganadas: Fue la oferta más alta en una subasta que ya terminó
+        subastas_ganadas = ofertas_validas.filter(
+            subasta_id__in=finalizadas_ids,
+            es_ganadora=True
+        ).count()
+        
+        # Perdidas: Participó pero no ganó en una subasta que ya terminó
+        subastas_perdidas = len(finalizadas_ids) - subastas_ganadas
+        
+        # En curso: Subastas donde está participando y aún no terminan
+        subastas_en_curso = len(activas_ids)
+        
+        # 4. Métricas monetarias
+        agg = ofertas_validas.aggregate(monto_promedio=Avg('monto'), monto_maximo=Max('monto'))
         monto_promedio = agg.get('monto_promedio') or 0
         monto_maximo = agg.get('monto_maximo') or 0
 
-        ultima = Oferta.objects.filter(cliente=cliente).order_by('-fecha_oferta').first()
+        # 5. Auditoría
+        ultima = ofertas_validas.order_by('-fecha_oferta').first()
         ultima_participacion = ultima.fecha_oferta.isoformat() if ultima else None
 
         return Response({
             'total_ofertas': total_ofertas,
-            'subastas_participadas': subastas_participadas,
+            'subastas_participadas': subastas_donde_participo.count(),
             'subastas_ganadas': subastas_ganadas,
             'subastas_perdidas': subastas_perdidas,
+            'subastas_en_curso': subastas_en_curso,
             'monto_promedio': float(monto_promedio),
             'monto_maximo': float(monto_maximo),
             'ultima_participacion': ultima_participacion,

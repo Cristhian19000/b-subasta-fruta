@@ -14,7 +14,7 @@ const Reportes = () => {
     const [fechaInicioPacking, setFechaInicioPacking] = useState('');
     const [fechaFinPacking, setFechaFinPacking] = useState('');
 
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(null);
     const [mensaje, setMensaje] = useState(null);
 
     /**
@@ -60,7 +60,7 @@ const Reportes = () => {
      * Función genérica para descargar reportes.
      */
     const descargarReporte = async (tipo, downloadFunction) => {
-        setLoading(true);
+        setLoading(tipo);
         setMensaje(null);
 
         try {
@@ -95,7 +95,7 @@ const Reportes = () => {
                 texto: `Error al generar el reporte de ${tipo}. Por favor, intenta nuevamente.`
             });
         } finally {
-            setLoading(false);
+            setLoading(null);
         }
     };
 
@@ -165,13 +165,13 @@ const Reportes = () => {
 
                     <button
                         onClick={handleDescargarReporteSubastas}
-                        disabled={loading}
-                        className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-white transition-all duration-200 shadow-sm ${loading ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700 active:scale-95'}`}
+                        disabled={loading !== null}
+                        className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-white transition-all duration-200 shadow-sm ${loading === 'subastas' ? 'bg-blue-400' : loading !== null ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 active:scale-95'}`}
                     >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
-                        <span>{loading ? 'Generando...' : 'Descargar Excel'}</span>
+                        <span>{loading === 'subastas' ? 'Generando...' : 'Descargar Excel'}</span>
                     </button>
                 </div>
 
@@ -217,13 +217,13 @@ const Reportes = () => {
 
                     <button
                         onClick={handleDescargarReportePacking}
-                        disabled={loading}
-                        className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-white transition-all duration-200 shadow-sm ${loading ? 'bg-gray-400' : 'bg-orange-600 hover:bg-orange-700 active:scale-95'}`}
+                        disabled={loading !== null}
+                        className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-white transition-all duration-200 shadow-sm ${loading === 'packing' ? 'bg-orange-400' : loading !== null ? 'bg-gray-400 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700 active:scale-95'}`}
                     >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
-                        <span>{loading ? 'Generando...' : 'Descargar Excel'}</span>
+                        <span>{loading === 'packing' ? 'Generando...' : 'Descargar Excel'}</span>
                     </button>
                 </div>
 
@@ -245,13 +245,13 @@ const Reportes = () => {
                         </div>
                         <button
                             onClick={handleDescargarReporteClientes}
-                            disabled={loading}
-                            className={`flex items-center gap-2 px-6 py-2.5 rounded-lg font-medium text-white transition-all duration-200 shadow-sm ${loading ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700 active:scale-95'}`}
+                            disabled={loading !== null}
+                            className={`flex items-center gap-2 px-6 py-2.5 rounded-lg font-medium text-white transition-all duration-200 shadow-sm ${loading === 'clientes' ? 'bg-green-400' : loading !== null ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 active:scale-95'}`}
                         >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
-                            <span>{loading ? 'Generando...' : 'Descargar Excel'}</span>
+                            <span>{loading === 'clientes' ? 'Generando...' : 'Descargar Excel'}</span>
                         </button>
                     </div>
                 </div>

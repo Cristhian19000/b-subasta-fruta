@@ -280,9 +280,10 @@ class DashboardViewSet(viewsets.ViewSet):
         
         Retorna últimas 5 subastas finalizadas.
         """
+        ahora = timezone.now()
         subastas = Subasta.objects.filter(
-            estado='FINALIZADA'
-        ).select_related(
+            fecha_hora_fin__lt=ahora
+        ).exclude(estado='CANCELADA').select_related(
             'packing_detalle__packing_tipo__tipo_fruta'
         ).order_by('-fecha_hora_fin')[:5]
         
@@ -313,12 +314,14 @@ class DashboardViewSet(viewsets.ViewSet):
         fecha_inicio, fecha_fin = self._get_periodo_fechas(periodo)
         
         # Obtener ofertas ganadoras en el período
+        # Se consideran subastas cuya fecha de fin ya pasó y no están canceladas
+        ahora = timezone.now()
         ofertas_ganadoras = Oferta.objects.filter(
             es_ganadora=True,
             fecha_oferta__gte=fecha_inicio,
             fecha_oferta__lte=fecha_fin,
-            subasta__estado='FINALIZADA'
-        ).select_related('cliente')
+            subasta__fecha_hora_fin__lt=ahora
+        ).exclude(subasta__estado='CANCELADA').select_related('cliente', 'subasta')
         
         # Agrupar por cliente
         clientes_stats = {}

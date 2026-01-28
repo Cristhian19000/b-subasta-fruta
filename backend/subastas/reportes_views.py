@@ -169,12 +169,37 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         # DATOS DE SUBASTAS
         # =====================================================================
         
+        # Obtener tiempo actual
+        ahora = timezone.now()
+        
         row_num = 3
         for subasta in queryset:
-            # Obtener información de la oferta ganadora
+            # 1. Calcular estado en tiempo real (Lógica dinámica)
+            estado_real = subasta.estado
+            if subasta.estado != 'CANCELADA':
+                if ahora < subasta.fecha_hora_inicio:
+                    estado_real = 'PROGRAMADA'
+                elif subasta.fecha_hora_inicio <= ahora <= subasta.fecha_hora_fin:
+                    estado_real = 'ACTIVA'
+                else:
+                    estado_real = 'FINALIZADA'
+
+            # 2. Obtener información de la oferta ganadora
             oferta_ganadora = subasta.oferta_ganadora
-            ganador_nombre = oferta_ganadora.cliente.nombre_razon_social if oferta_ganadora else 'Sin ofertas'
-            monto_ganador = float(oferta_ganadora.monto) if oferta_ganadora else 0.0
+            
+            # 3. Determinar qué mostrar como ganador según el estado dinámico
+            if estado_real == 'FINALIZADA':
+                ganador_nombre = oferta_ganadora.cliente.nombre_razon_social if oferta_ganadora else 'Sin ofertas'
+                monto_ganador = float(oferta_ganadora.monto) if oferta_ganadora else 0.0
+            elif estado_real == 'ACTIVA':
+                ganador_nombre = f"LÍDER: {oferta_ganadora.cliente.nombre_razon_social}" if oferta_ganadora else 'Sin ofertas'
+                monto_ganador = float(oferta_ganadora.monto) if oferta_ganadora else 0.0
+            elif estado_real == 'CANCELADA':
+                ganador_nombre = 'CANCELADA'
+                monto_ganador = 0.0
+            else: # PROGRAMADA
+                ganador_nombre = 'Pendiente'
+                monto_ganador = 0.0
             
             # Contar ofertas totales
             total_ofertas = subasta.ofertas.count()
@@ -198,7 +223,7 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
                 detalle.fecha.strftime('%d/%m/%Y'),
                 packing_tipo.tipo_fruta.nombre,
                 float(detalle.py),
-                subasta.get_estado_display(),
+                estado_real, # Usamos el estado calculado en tiempo real
                 fecha_inicio_peru.strftime('%d/%m/%Y %H:%M'),  # Horario de Perú
                 fecha_fin_peru.strftime('%d/%m/%Y %H:%M'),      # Horario de Perú
                 float(subasta.precio_base),
@@ -280,7 +305,7 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         
         Retorna: Archivo Excel descargable
         """
-        from django.db.models import Count, Sum, Q
+        from django.db.models import Count, Sum, Q, Avg, Max
         
         # Obtener todos los clientes con sus estadísticas
         clientes = Cliente.objects.all().order_by('nombre_razon_social')
@@ -318,7 +343,7 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         # TÍTULO DEL REPORTE
         # =====================================================================
         
-        ws.merge_cells('A1:R1')
+        ws.merge_cells('A1:V1')
         cell_titulo = ws['A1']
         cell_titulo.value = "REPORTE DE CLIENTES"
         cell_titulo.font = titulo_font
@@ -346,8 +371,13 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
             'Email 2',
             'Estatus Ficha',
             'Correo Conf.',
-            'Total Ofertas',
+            'Participación (Subastas)',
             'Subastas Ganadas',
+            'Subastas Perdidas',
+            'Subastas en Curso',
+            'Total Ofertas',
+            'Monto Promedio (S/)',
+            'Monto Máximo (S/)',
             'Fecha Registro'
         ]
         
@@ -365,17 +395,38 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         # DATOS DE CLIENTES
         # =====================================================================
         
+        # Obtener tiempo actual para cálculos real-time
+        ahora = timezone.now()
+        
         row_num = 3
         for cliente in clientes:
-            # Calcular estadísticas de participación
-            total_ofertas = Oferta.objects.filter(cliente=cliente).count()
+            # Base queryset para ofertas del cliente en subastas NO canceladas
+            ofertas_validas = Oferta.objects.filter(cliente=cliente).exclude(subasta__estado='CANCELADA')
             
-            # Subastas ganadas: subastas finalizadas donde este cliente tiene la oferta ganadora
-            subastas_ganadas = Oferta.objects.filter(
-                cliente=cliente,
-                es_ganadora=True,
-                subasta__estado='FINALIZADA'
+            # IDs de subastas donde ha participado (activas o finalizadas, NO canceladas)
+            ids_subastas_participadas = ofertas_validas.values_list('subasta_id', flat=True).distinct()
+            subastas_validadas = Subasta.objects.filter(id__in=ids_subastas_participadas).exclude(estado='CANCELADA')
+            
+            # Desglose por tiempo
+            finalizadas_ids = subastas_validadas.filter(fecha_hora_fin__lt=ahora).values_list('id', flat=True)
+            activas_ids = subastas_validadas.filter(fecha_hora_inicio__lte=ahora, fecha_hora_fin__gte=ahora).values_list('id', flat=True)
+            
+            # Subastas ganadas: Oferta ganadora en subasta que ya terminó
+            subastas_ganadas = ofertas_validas.filter(
+                subasta_id__in=finalizadas_ids,
+                es_ganadora=True
             ).count()
+            
+            # Subastas perdidas: Finalizadas donde no ganó
+            subastas_perdidas = len(finalizadas_ids) - subastas_ganadas
+            
+            # Subastas en curso
+            subastas_en_curso = len(activas_ids)
+            
+            # Métricas monetarias
+            agg = ofertas_validas.aggregate(promedio=Avg('monto'), maximo=Max('monto'))
+            monto_promedio = float(agg.get('promedio') or 0.0)
+            monto_maximo = float(agg.get('maximo') or 0.0)
             
             # Datos de la fila
             row_data = [
@@ -394,8 +445,13 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
                 cliente.correo_electronico_2 or '',
                 cliente.get_estatus_ficha_display(),
                 'Sí' if cliente.confirmacion_correo else 'No',
-                total_ofertas,
+                subastas_validadas.count(),  # Participación
                 subastas_ganadas,
+                subastas_perdidas,
+                subastas_en_curso,
+                ofertas_validas.count(),     # Total Ofertas
+                monto_promedio,
+                monto_maximo,
                 cliente.fecha_creacion.strftime('%d/%m/%Y')
             ]
             
@@ -429,9 +485,14 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
             'M': 30,  # Email 2
             'N': 18,  # Estatus Ficha
             'O': 14,  # Correo Conf.
-            'P': 15,  # Total Ofertas
-            'Q': 18,  # Subastas Ganadas
-            'R': 18,  # Fecha Registro
+            'P': 16,  # Participación
+            'Q': 16,  # Subastas Ganadas
+            'R': 16,  # Subastas Perdidas
+            'S': 16,  # Subastas en Curso
+            'T': 15,  # Total Ofertas
+            'U': 18,  # Monto Promedio
+            'V': 18,  # Monto Máximo
+            'W': 18,  # Fecha Registro
         }
         
         for col_letter, width in column_widths.items():
@@ -442,7 +503,12 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         # =====================================================================
         
         if row_num > 3:  # Solo si hay datos
-            ws.auto_filter.ref = f"A2:R{row_num-1}"
+            ws.auto_filter.ref = f"A2:W{row_num-1}"
+            
+            # Formatear columnas de moneda (U y V)
+            for r in range(3, row_num):
+                ws[f'U{r}'].number_format = '"S/" #,##0.00'
+                ws[f'V{r}'].number_format = '"S/" #,##0.00'
         
         # =====================================================================
         # GENERAR RESPUESTA HTTP CON EL ARCHIVO

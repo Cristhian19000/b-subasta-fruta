@@ -12,7 +12,7 @@ import { getSubastas, getResumenSubastas, actualizarEstadosSubastas, cancelarSub
 import SubastaDetalle from './SubastaDetalle';
 import SubastaForm from './SubastaForm';
 import SubastaEditForm from './SubastaEditForm';
-import { Circle, Clock, Flag, RefreshCw, Edit2 } from 'lucide-react';
+import { Circle, Clock, Flag, RefreshCw, Edit2, ChevronLeft, ChevronRight } from 'lucide-react';
 
 // Colores para estados de subasta
 const ESTADO_COLORS = {
@@ -38,6 +38,9 @@ const Subastas = () => {
     const [resumen, setResumen] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [totalSubastas, setTotalSubastas] = useState(0);
+    const [paginaActual, setPaginaActual] = useState(1);
+    const [pageSize] = useState(20);
 
     // Filtros
     const [filtroEstado, setFiltroEstado] = useState('');
@@ -56,7 +59,9 @@ const Subastas = () => {
             setLoading(true);
             setError(null);
 
-            const params = {};
+            const params = {
+                page: paginaActual
+            };
             if (filtroEstado) params.estado = filtroEstado;
             if (searchQuery) params.search = searchQuery;
 
@@ -68,7 +73,10 @@ const Subastas = () => {
             // Manejar respuesta paginada o array directo
             const subastasData = subastasRes.data?.results || subastasRes.data || [];
             const subastasArray = Array.isArray(subastasData) ? subastasData : [];
+            const total = subastasRes.data?.count || subastasArray.length;
+
             setSubastas(subastasArray);
+            setTotalSubastas(total);
             setResumen(resumenRes.data);
 
             // Verificar si venimos del dashboard con un ID para abrir automáticamente
@@ -85,7 +93,12 @@ const Subastas = () => {
         } finally {
             setLoading(false);
         }
-    }, [filtroEstado, searchQuery, location.state]);
+    }, [filtroEstado, searchQuery, paginaActual, location.state]);
+
+    // Resetear a página 1 cuando cambian los filtros o búsqueda
+    useEffect(() => {
+        setPaginaActual(1);
+    }, [filtroEstado, searchQuery]);
 
     // Efecto para Debounce de búsqueda
     useEffect(() => {
@@ -445,6 +458,71 @@ const Subastas = () => {
                     loading={loading}
                     emptyMessage="No hay subastas registradas"
                 />
+
+                {/* Paginación */}
+                {!loading && subastas.length > 0 && totalSubastas > pageSize && (
+                    <div className="px-6 py-4 flex items-center justify-between border-t border-gray-200 bg-gray-50">
+                        <div className="flex-1 flex justify-between sm:hidden">
+                            <Button
+                                onClick={() => setPaginaActual(prev => Math.max(1, prev - 1))}
+                                disabled={paginaActual === 1}
+                                variant="secondary"
+                            >
+                                Anterior
+                            </Button>
+                            <Button
+                                onClick={() => setPaginaActual(prev => prev + 1)}
+                                disabled={paginaActual * pageSize >= totalSubastas}
+                                variant="secondary"
+                            >
+                                Siguiente
+                            </Button>
+                        </div>
+                        <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                            <div>
+                                <p className="text-sm text-gray-700">
+                                    Mostrando{' '}
+                                    <span className="font-medium">
+                                        {(paginaActual - 1) * pageSize + 1}
+                                    </span>
+                                    {' '}a{' '}
+                                    <span className="font-medium">
+                                        {Math.min(paginaActual * pageSize, totalSubastas)}
+                                    </span>
+                                    {' '}de{' '}
+                                    <span className="font-medium">{totalSubastas}</span> resultados
+                                </p>
+                            </div>
+                            <div>
+                                <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                                    <button
+                                        onClick={() => setPaginaActual(prev => Math.max(1, prev - 1))}
+                                        disabled={paginaActual === 1}
+                                        className={`relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium ${paginaActual === 1 ? 'text-gray-300 cursor-not-allowed' : 'text-gray-500 hover:bg-gray-50'
+                                            }`}
+                                    >
+                                        <span className="sr-only">Anterior</span>
+                                        <ChevronLeft className="h-5 w-5" />
+                                    </button>
+
+                                    <div className="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                                        Página {paginaActual} de {Math.ceil(totalSubastas / pageSize)}
+                                    </div>
+
+                                    <button
+                                        onClick={() => setPaginaActual(prev => prev + 1)}
+                                        disabled={paginaActual * pageSize >= totalSubastas}
+                                        className={`relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium ${paginaActual * pageSize >= totalSubastas ? 'text-gray-300 cursor-not-allowed' : 'text-gray-500 hover:bg-gray-50'
+                                            }`}
+                                    >
+                                        <span className="sr-only">Siguiente</span>
+                                        <ChevronRight className="h-5 w-5" />
+                                    </button>
+                                </nav>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Modal de Detalle */}
