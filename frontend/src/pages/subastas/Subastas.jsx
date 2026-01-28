@@ -41,6 +41,8 @@ const Subastas = () => {
 
     // Filtros
     const [filtroEstado, setFiltroEstado] = useState('');
+    const [searchTerm, setSearchTerm] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
 
     // Modales
     const [selectedSubasta, setSelectedSubasta] = useState(null);
@@ -56,6 +58,7 @@ const Subastas = () => {
 
             const params = {};
             if (filtroEstado) params.estado = filtroEstado;
+            if (searchQuery) params.search = searchQuery;
 
             const [subastasRes, resumenRes] = await Promise.all([
                 getSubastas(params),
@@ -82,7 +85,16 @@ const Subastas = () => {
         } finally {
             setLoading(false);
         }
-    }, [filtroEstado, location.state]);
+    }, [filtroEstado, searchQuery, location.state]);
+
+    // Efecto para Debounce de búsqueda
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setSearchQuery(searchTerm);
+        }, 500); // 500ms de retraso
+
+        return () => clearTimeout(timer);
+    }, [searchTerm]);
 
     useEffect(() => {
         cargarDatos();
@@ -106,6 +118,12 @@ const Subastas = () => {
     const handleVerDetalle = (subasta) => {
         setSelectedSubasta(subasta);
         setShowDetalle(true);
+    };
+
+    const handleNuevaSubasta = () => {
+        setSelectedSubasta(null);
+        setShowForm(true);
+        setShowEditForm(false);
     };
 
 
@@ -170,153 +188,158 @@ const Subastas = () => {
     // Columnas de la tabla (formato compatible con Table.jsx: key, title, render)
     const columns = [
         {
-            key: 'id',
-            title: 'ID',
-            render: (_, row) => <span className="font-mono text-sm">#{row.id}</span>
-        },
-        {
-            key: 'tipo_fruta_nombre',
-            title: 'Producto',
+            key: 'producto',
+            title: 'Lote / Producto',
             render: (_, row) => (
-                <div>
-                    <div className="font-medium text-gray-900">{row.tipo_fruta_nombre}</div>
-                    <div className="text-xs text-gray-500">{row.empresa_nombre}</div>
+                <div className="flex flex-col">
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                        <span className="font-mono text-[11px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">
+                            #{row.id}
+                        </span>
+                        <span className="font-semibold text-gray-900 truncate max-w-[120px]" title={row.tipo_fruta_nombre}>
+                            {row.tipo_fruta_nombre}
+                        </span>
+                    </div>
+                    <div className="text-xs text-gray-500 truncate max-w-[150px]" title={row.empresa_nombre}>
+                        {row.empresa_nombre}
+                    </div>
                 </div>
             )
         },
         {
-            key: 'fecha_produccion',
-            title: 'Fecha Producción',
+            key: 'produccion',
+            title: 'Producción',
             render: (_, row) => (
                 <div>
-                    <div className="text-sm">{row.dia}</div>
-                    <div className="text-xs text-gray-500">{row.fecha_produccion}</div>
+                    <div className="font-medium text-gray-800">{formatKg(row.kilos)}</div>
+                    <div className="text-[11px] text-gray-500 flex flex-col mt-0.5">
+                        <span className="capitalize">{row.dia}</span>
+                        <span>{row.fecha_produccion}</span>
+                    </div>
                 </div>
             )
         },
         {
-            key: 'kilos',
-            title: 'Kilos',
-            render: (_, row) => <span className="font-medium">{formatKg(row.kilos)}</span>
-        },
-        {
-            key: 'fecha_hora_inicio',
-            title: 'Horario',
+            key: 'cronograma',
+            title: 'Cronograma',
             render: (_, row) => (
-                <div className="text-xs">
-                    <div className="inline-flex items-center gap-1">
-                        <Clock className="w-3 h-3 text-gray-500 flex-shrink-0" />
+                <div className="space-y-1">
+                    <div className="flex items-center gap-1.5 text-[11px] text-gray-600">
+                        <Clock className="w-3 h-3 flex-shrink-0" />
                         <span>{formatDateTime(row.fecha_hora_inicio)}</span>
                     </div>
-                    <div className="inline-flex items-center gap-1">
-                        <Flag className="w-3 h-3 text-gray-500 flex-shrink-0" />
+                    <div className="flex items-center gap-1.5 text-[11px] text-gray-500">
+                        <Flag className="w-3 h-3 flex-shrink-0" />
                         <span>{formatDateTime(row.fecha_hora_fin)}</span>
+                    </div>
+                    <div className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded inline-block">
+                        Base: {formatCurrency(row.precio_base)}
                     </div>
                 </div>
             )
         },
         {
-            key: 'precio_base',
-            title: 'Precio Base',
-            render: (_, row) => <span className="text-gray-600">{formatCurrency(row.precio_base)}</span>
-        },
-        {
-            key: 'precio_actual',
-            title: 'Precio',
+            key: 'estado_precio',
+            title: 'Estado y Precio',
             render: (_, row) => {
+                const isActive = row.estado_actual === 'ACTIVA';
                 const isFinalizada = row.estado_actual === 'FINALIZADA';
-                const label = isFinalizada ? 'Precio Final' : 'Precio Actual';
+
                 return (
-                    <div>
-                        <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">
-                            {label}
-                        </div>
-                        <div className="font-semibold text-gray-900">
-                            {formatCurrency(row.precio_actual)}
+                    <div className="space-y-2">
+                        <Badge variant={ESTADO_COLORS[row.estado_actual] || 'default'}>
+                            <span className="flex items-center gap-1.5 px-0.5 py-px">
+                                {isActive && (
+                                    <span className="relative flex h-2 w-2">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                                    </span>
+                                )}
+                                {ESTADO_LABELS[row.estado_actual] || row.estado_actual}
+                            </span>
+                        </Badge>
+                        <div>
+                            <div className="text-[10px] text-gray-400 uppercase font-medium">
+                                {isFinalizada ? 'Precio Final' : 'Precio Actual'}
+                            </div>
+                            <div className={`font-bold text-base ${isActive ? 'text-green-600' : 'text-gray-900'}`}>
+                                {formatCurrency(row.precio_actual)}
+                            </div>
                         </div>
                     </div>
                 );
             }
         },
         {
-            key: 'estado_actual',
-            title: 'Estado',
-            render: (_, row) => (
-                <Badge variant={ESTADO_COLORS[row.estado_actual] || 'default'}>
-                    <span className="flex items-center gap-1">
-                        {row.estado_actual === 'ACTIVA' && <Circle className="w-2 h-2 fill-current" />}
-                        {ESTADO_LABELS[row.estado_actual] || row.estado_actual}
-                    </span>
-                </Badge>
-            )
-        },
-        {
-            key: 'total_ofertas',
-            title: 'Ofertas',
-            align: 'center',
-            render: (_, row) => (
-                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
-                    {row.total_ofertas || 0}
-                </span>
-            )
-        },
-        {
-            key: 'cliente_ganando',
-            title: 'Posición',
+            key: 'participacion',
+            title: 'Participación',
             render: (_, row) => {
                 const isFinalizada = row.estado_actual === 'FINALIZADA';
-                const label = isFinalizada ? 'Ganador' : 'Ganando';
 
-                return row.cliente_ganando ? (
-                    <div className="text-xs">
-                        <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">
-                            {label}
+                return (
+                    <div className="space-y-1.5">
+                        <div className="flex items-center gap-2">
+                            <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[11px] font-bold">
+                                {row.total_ofertas || 0} ofertas
+                            </span>
                         </div>
-                        <div className="font-medium text-gray-900 truncate max-w-32">
-                            {row.cliente_ganando.nombre}
-                        </div>
-                        <div className="text-gray-600 text-[11px]">
-                            {formatCurrency(row.cliente_ganando.monto)}
-                        </div>
+                        {row.cliente_ganando ? (
+                            <div className="text-xs bg-gray-50 p-1.5 rounded border border-gray-100 max-w-[140px]">
+                                <div className="text-[10px] text-gray-500 uppercase leading-tight mb-0.5">
+                                    {isFinalizada ? 'Ganador' : 'Líder'}
+                                </div>
+                                <div className="font-semibold text-gray-900 truncate">
+                                    {row.cliente_ganando.nombre}
+                                </div>
+                                <div className="text-blue-600 font-medium text-[11px]">
+                                    {formatCurrency(row.cliente_ganando.monto)}
+                                </div>
+                            </div>
+                        ) : (
+                            <span className="text-gray-400 text-[11px] italic">Sin ofertas</span>
+                        )}
                     </div>
-                ) : (
-                    <span className="text-gray-400 text-xs">Sin ofertas</span>
                 );
             }
         },
         {
             key: 'actions',
-            title: 'Acciones',
+            title: '',
+            align: 'right',
             render: (_, row) => (
-                <div className="flex gap-1">
+                <div className="flex flex-col gap-1.5 min-w-[100px]">
                     <Button
                         size="sm"
-                        variant="secondary"
+                        variant="primary"
                         onClick={() => handleVerDetalle(row)}
-                        title="Ver detalle"
+                        className="w-full text-xs"
                     >
-                        Ver
+                        Ver Detalle
                     </Button>
-                    {row.estado_actual === 'PROGRAMADA' && (
-                        <Button
-                            size="sm"
-                            variant="warning"
-                            onClick={() => handleEditar(row)}
-                            title="Editar programación"
-                        >
-                            <Edit2 className="w-3 h-3" />
-                        </Button>
-                    )}
-                    {row.estado_actual !== 'FINALIZADA' && row.estado_actual !== 'CANCELADA' && (
-                        <Button
-                            size="sm"
-                            variant="danger"
-                            onClick={() => handleCancelar(row)}
-                            title="Cancelar subasta"
-                        >
-                            Cancelar
-                        </Button>
-                    )}
+                    <div className="flex gap-1">
+                        {row.estado_actual === 'PROGRAMADA' && (
+                            <Button
+                                size="sm"
+                                variant="warning"
+                                onClick={() => handleEditar(row)}
+                                className="flex-1 px-2 py-1"
+                                title="Editar"
+                            >
+                                <Edit2 className="w-3.5 h-3.5" />
+                            </Button>
+                        )}
+                        {row.estado_actual !== 'FINALIZADA' && row.estado_actual !== 'CANCELADA' && (
+                            <Button
+                                size="sm"
+                                variant="danger"
+                                onClick={() => handleCancelar(row)}
+                                className="flex-1 px-2 py-1"
+                                title="Cancelar"
+                            >
+                                <span className="text-[10px] font-medium">Cancelar</span>
+                            </Button>
+                        )}
+                    </div>
                 </div>
             )
         }
@@ -330,7 +353,6 @@ const Subastas = () => {
                     <h1 className="text-2xl font-bold text-gray-900">Subastas</h1>
                     <p className="text-gray-500">Gestión de subastas de producción diaria</p>
                 </div>
-
             </div>
 
             {/* Resumen de estados */}
@@ -364,8 +386,26 @@ const Subastas = () => {
 
             {/* Filtros */}
             <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-                <div className="flex gap-4 items-end">
-                    <div className="w-48">
+                <div className="flex flex-col md:flex-row gap-4 items-end">
+                    <div className="flex-1 w-full md:w-auto">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Buscar subasta
+                        </label>
+                        <div className="relative">
+                            <Input
+                                placeholder="Producto, empresa o ID..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="pl-10"
+                            />
+                            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="w-full md:w-48">
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                             Estado
                         </label>

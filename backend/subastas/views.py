@@ -41,6 +41,17 @@ class SubastaViewSet(viewsets.ModelViewSet):
     
     permission_classes = [IsAuthenticated]
     
+    # Backends de filtrado: búsqueda por texto
+    from rest_framework import filters
+    filter_backends = [filters.SearchFilter]
+    
+    # Campos habitados para búsqueda (?search=)
+    search_fields = [
+        '=id',
+        'packing_detalle__packing_tipo__tipo_fruta__nombre',
+        'packing_detalle__packing_tipo__packing_semanal__empresa__nombre',
+    ]
+    
     def get_queryset(self):
         """Obtener subastas con filtros."""
         queryset = Subasta.objects.select_related(
@@ -50,6 +61,11 @@ class SubastaViewSet(viewsets.ModelViewSet):
             'packing_detalle__packing_tipo__packing_semanal',
             'packing_detalle__packing_tipo__packing_semanal__empresa',
         ).prefetch_related('ofertas', 'ofertas__cliente')
+        
+        # Filtro por búsqueda de texto
+        search = self.request.query_params.get('search', None)
+        # Nota: SearchFilter ya maneja el parámetro 'search' automáticamente
+        # si se añade a filter_backends, pero mantenemos get_queryset limpio
         
         # Filtro por estado
         estado = self.request.query_params.get('estado', None)

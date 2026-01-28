@@ -36,20 +36,17 @@ const StatusDonutWidget = ({ title, data, loading = false, colorScheme = 'blue',
 
     if (!data) return null;
 
-    // ... (logic remains same)
-    const chartData = Object.entries(data)
-        .filter(([key]) => key !== 'TOTAL')
-        .map(([key, value]) => ({
-            name: key.charAt(0) + key.slice(1).toLowerCase().replace('_', ' '),
-            value: value
-        }))
-        .filter(item => item.value > 0);
-
-    // ... (statusColors mapping)
     const statusColors = {
-        'Programada': '#60a5fa', 'Activa': '#22c55e', 'Finalizada': '#94a3b8', 'Cancelada': '#ef4444',
-        'Proyectado': '#f59e0b', 'En subasta': '#3b82f6', 'Finalizado': '#10b981', 'Anulado': '#7f1d1d',
-        'Activos': '#10b981', 'Pendientes': '#f97316',
+        'Programada': '#60a5fa',
+        'Activa': '#22c55e',
+        'Finalizada': '#94a3b8',
+        'Cancelada': '#ef4444',
+        'Proyectado': '#f59e0b',
+        'En subasta': '#3b82f6',
+        'Finalizado': '#10b981',
+        'Anulado': '#7f1d1d',
+        'Activos': '#10b981',
+        'Pendientes': '#f97316',
     };
 
     const schemes = {
@@ -61,7 +58,18 @@ const StatusDonutWidget = ({ title, data, loading = false, colorScheme = 'blue',
     const fallbackColors = schemes[colorScheme] || schemes.blue;
     const getCellColor = (name, index) => statusColors[name] || fallbackColors[index % fallbackColors.length];
 
-    // Formatear números grandes (ej: 1.5k)
+    const chartData = Object.entries(data)
+        .filter(([key]) => key !== 'TOTAL')
+        .map(([key, value], index) => {
+            const name = key.charAt(0) + key.slice(1).toLowerCase().replace('_', ' ');
+            return {
+                name,
+                value: value,
+                fill: getCellColor(name, index)
+            };
+        })
+        .filter(item => item.value > 0);
+
     const formatNumber = (num) => {
         if (num >= 1000000) return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
         if (num >= 1000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
@@ -110,12 +118,11 @@ const StatusDonutWidget = ({ title, data, loading = false, colorScheme = 'blue',
                                     paddingAngle={5}
                                     dataKey="value"
                                     stroke="none"
-                                >
-                                    {chartData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={getCellColor(entry.name, index)} />
-                                    ))}
-                                </Pie>
-                                <Tooltip content={<CustomTooltip />} />
+                                />
+                                <Tooltip
+                                    content={<CustomTooltip />}
+                                    wrapperStyle={{ zIndex: 50, outline: 'none' }}
+                                />
                                 {showLegend && (
                                     <Legend
                                         verticalAlign="bottom"
@@ -128,7 +135,7 @@ const StatusDonutWidget = ({ title, data, loading = false, colorScheme = 'blue',
                         </ResponsiveContainer>
 
                         {/* Indicador central */}
-                        <div className="absolute top-[40%] left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
+                        <div className="absolute top-[40%] left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none z-10">
                             <div className="text-xl font-black text-gray-900 leading-none">
                                 {formatNumber(data.TOTAL || 0)}
                             </div>

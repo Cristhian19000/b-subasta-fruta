@@ -10,7 +10,7 @@ const Table = ({
 }) => {
     // Asegurar que data sea siempre un array
     const tableData = Array.isArray(data) ? data : (data?.results || []);
-    
+
     if (loading) {
         return (
             <div className="text-center py-12 text-gray-500">
@@ -36,10 +36,9 @@ const Table = ({
                             {columns.map((column) => (
                                 <th
                                     key={column.key}
-                                    className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
-                                        column.align === 'right' ? 'text-right' : 
-                                        column.align === 'center' ? 'text-center' : 'text-left'
-                                    }`}
+                                    className={`px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${column.align === 'right' ? 'text-right' :
+                                            column.align === 'center' ? 'text-center' : 'text-left'
+                                        }`}
                                 >
                                     {column.title}
                                 </th>
@@ -52,13 +51,12 @@ const Table = ({
                                 {columns.map((column) => (
                                     <td
                                         key={column.key}
-                                        className={`px-6 py-4 whitespace-nowrap text-sm ${
-                                            column.align === 'right' ? 'text-right' : 
-                                            column.align === 'center' ? 'text-center' : 'text-left'
-                                        }`}
+                                        className={`px-4 py-3 whitespace-nowrap text-sm ${column.align === 'right' ? 'text-right' :
+                                                column.align === 'center' ? 'text-center' : 'text-left'
+                                            }`}
                                     >
-                                        {column.render 
-                                            ? column.render(row[column.key], row) 
+                                        {column.render
+                                            ? column.render(row[column.key], row)
                                             : row[column.key]
                                         }
                                     </td>
