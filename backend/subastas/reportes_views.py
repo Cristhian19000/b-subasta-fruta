@@ -96,9 +96,14 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         titulo_fill = PatternFill(start_color='1F4788', end_color='1F4788', fill_type='solid')
         titulo_alignment = Alignment(horizontal='center', vertical='center')
         
-        # Estilo del encabezado de columnas
-        header_font = Font(name='Calibri', size=11, bold=True, color='FFFFFF')
-        header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
+        # Estilo del encabezado de Packing (Naranja)
+        header_packing_font = Font(name='Calibri', size=11, bold=True, color='FFFFFF')
+        header_packing_fill = PatternFill(start_color='E46C0A', end_color='E46C0A', fill_type='solid')
+        
+        # Estilo del encabezado de Subasta (Azul)
+        header_subasta_font = Font(name='Calibri', size=11, bold=True, color='FFFFFF')
+        header_subasta_fill = PatternFill(start_color='1F4788', end_color='1F4788', fill_type='solid')
+        
         header_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
         
         # Estilo de las celdas de datos
@@ -115,7 +120,7 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         # TÍTULO DEL REPORTE
         # =====================================================================
         
-        ws.merge_cells('A1:N1')
+        ws.merge_cells('A1:O1')
         cell_titulo = ws['A1']
         
         # Crear texto del título con rango de fechas
@@ -141,14 +146,15 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         headers = [
             'ID Subasta',
             'Empresa',
-            'Semana',
+            'Semana de Proyectado',
             'Día',
-            'Fecha Producción',
+            'Fecha de Proyección',
             'Tipo Fruta',
             'Kilos',
             'Estado',
             'Fecha Inicio',
             'Fecha Fin',
+            'Duración',
             'Precio Base',
             'Ganador',
             'Monto Ganador',
@@ -158,10 +164,16 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         for col_num, header in enumerate(headers, 1):
             cell = ws.cell(row=2, column=col_num)
             cell.value = header
-            cell.font = header_font
-            cell.fill = header_fill
             cell.alignment = header_alignment
             cell.border = cell_border
+            
+            # Aplicar color según el grupo (1-7: Packing, 8-15: Subasta)
+            if 1 <= col_num <= 7:
+                cell.font = header_packing_font
+                cell.fill = header_packing_fill
+            else:
+                cell.font = header_subasta_font
+                cell.fill = header_subasta_fill
         
         ws.row_dimensions[2].height = 35
         
@@ -214,11 +226,33 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
             fecha_inicio_peru = subasta.fecha_hora_inicio.astimezone(lima_tz)
             fecha_fin_peru = subasta.fecha_hora_fin.astimezone(lima_tz)
             
+            # Formatear la Semana: "Semana 8 | 16 feb. 2026 - 21 feb. 2026"
+            # Mapeo de meses en español (abreviado)
+            meses_es = {
+                1: 'ene.', 2: 'feb.', 3: 'mar.', 4: 'abr.', 5: 'may.', 6: 'jun.',
+                7: 'jul.', 8: 'ago.', 9: 'sep.', 10: 'oct.', 11: 'nov.', 12: 'dic.'
+            }
+            num_semana = packing_semanal.fecha_inicio_semana.isocalendar()[1]
+            f_ini = packing_semanal.fecha_inicio_semana
+            f_fin = packing_semanal.fecha_fin_semana
+            
+            semana_format = f"Semana {num_semana} | {f_ini.day} {meses_es[f_ini.month]} {f_ini.year} - {f_fin.day} {meses_es[f_fin.month]} {f_fin.year}"
+            
+            # Calcular duración
+            delta = subasta.fecha_hora_fin - subasta.fecha_hora_inicio
+            total_horas = delta.total_seconds() / 3600
+            if total_horas == 1:
+                duracion_str = "1 hora"
+            elif total_horas.is_integer():
+                duracion_str = f"{int(total_horas)} horas"
+            else:
+                duracion_str = f"{total_horas:.1f} horas"
+
             # Datos de la fila
             row_data = [
                 subasta.id,
                 packing_semanal.empresa.nombre,
-                f"{packing_semanal.fecha_inicio_semana.strftime('%d/%m/%Y')} - {packing_semanal.fecha_fin_semana.strftime('%d/%m/%Y')}",
+                semana_format,
                 detalle.get_dia_display(),
                 detalle.fecha.strftime('%d/%m/%Y'),
                 packing_tipo.tipo_fruta.nombre,
@@ -226,6 +260,7 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
                 estado_real, # Usamos el estado calculado en tiempo real
                 fecha_inicio_peru.strftime('%d/%m/%Y %H:%M'),  # Horario de Perú
                 fecha_fin_peru.strftime('%d/%m/%Y %H:%M'),      # Horario de Perú
+                duracion_str,
                 float(subasta.precio_base),
                 ganador_nombre,
                 monto_ganador,
@@ -241,7 +276,7 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
                 cell.border = cell_border
                 
                 # Formato especial para números
-                if col_num in [7, 11, 13]:  # Kilos, Precio Base, Monto Ganador
+                if col_num in [7, 12, 14]:  # Kilos, Precio Base, Monto Ganador
                     cell.number_format = '#,##0.00'
             
             row_num += 1
@@ -253,18 +288,19 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         column_widths = {
             'A': 12,  # ID Subasta
             'B': 25,  # Empresa
-            'C': 25,  # Semana
+            'C': 35,  # Semana de Proyectado
             'D': 12,  # Día
-            'E': 18,  # Fecha Producción
+            'E': 20,  # Fecha de Proyección
             'F': 20,  # Tipo Fruta
             'G': 12,  # Kilos
             'H': 15,  # Estado
             'I': 18,  # Fecha Inicio
             'J': 18,  # Fecha Fin
-            'K': 14,  # Precio Base
-            'L': 30,  # Ganador
-            'M': 15,  # Monto Ganador
-            'N': 14,  # Total Ofertas
+            'K': 15,  # Duración
+            'L': 14,  # Precio Base
+            'M': 30,  # Ganador
+            'N': 15,  # Montos
+            'O': 14,  # Total Ofertas
         }
         
         for col_letter, width in column_widths.items():
@@ -275,7 +311,12 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         # =====================================================================
         
         if row_num > 3:  # Solo si hay datos
-            ws.auto_filter.ref = f"A2:N{row_num-1}"
+            ws.auto_filter.ref = f"A2:O{row_num-1}"
+            
+            # Formato moneda para columnas L y N (Precio Base y Monto Ganador)
+            for r in range(3, row_num):
+                ws[f'L{r}'].number_format = '"S/" #,##0.00'
+                ws[f'N{r}'].number_format = '"S/" #,##0.00'
         
         # =====================================================================
         # GENERAR RESPUESTA HTTP CON EL ARCHIVO
