@@ -19,6 +19,7 @@ import StatusDonutWidget from '../../components/dashboard/StatusDonutWidget';
 
 const Home = () => {
     const [loading, setLoading] = useState(true);
+    const [topLoading, setTopLoading] = useState(false);
     const [error, setError] = useState(null);
 
     // Estados para los datos necesarios
@@ -27,41 +28,51 @@ const Home = () => {
     const [subastasRecientes, setSubastasRecientes] = useState([]);
     const [topClientes, setTopClientes] = useState([]);
 
-    const fetchDashboardData = useCallback(async () => {
+    // 1. Cargar datos globales (No dependen del periodo ahora)
+    const fetchGlobalData = useCallback(async (showLoading = true) => {
+        if (showLoading) setLoading(true);
         try {
-            setLoading(true);
-            setError(null);
-
-            // Llamadas paralelas con el periodo seleccionado
-            const [
-                resResumen,
-                resRecientes,
-                resTop
-            ] = await Promise.all([
-                axios.get(`/subastas/dashboard/resumen/`, { params: { periodo } }),
-                axios.get(`/subastas/dashboard/subastas-recientes/`, { params: { periodo } }),
-                axios.get(`/subastas/dashboard/top-clientes/`, { params: { periodo } })
+            const [resResumen, resRecientes] = await Promise.all([
+                axios.get(`/subastas/dashboard/resumen/`),
+                axios.get(`/subastas/dashboard/subastas-recientes/`)
             ]);
-
             setResumen(resResumen.data);
             setSubastasRecientes(resRecientes.data);
-            setTopClientes(resTop.data);
-
+            setError(null);
         } catch (err) {
-            console.error('Error cargando dashboard:', err);
-            setError('No se pudo cargar la información del dashboard. Por favor, intente más tarde.');
+            console.error('Error cargando datos globales:', err);
+            setError('Error al cargar métricas generales.');
         } finally {
-            setLoading(false);
+            if (showLoading) setLoading(false);
+        }
+    }, []);
+
+    // 2. Cargar Ranking (SÍ depende del periodo)
+    const fetchTopData = useCallback(async (showLoading = true) => {
+        if (showLoading) setTopLoading(true);
+        try {
+            const resTop = await axios.get(`/subastas/dashboard/top-clientes/`, { params: { periodo } });
+            setTopClientes(resTop.data);
+        } catch (err) {
+            console.error('Error cargando top clientes:', err);
+        } finally {
+            if (showLoading) setTopLoading(false);
         }
     }, [periodo]);
 
+    // Efecto 1: Datos Globales (Solo al montar y por intervalo)
     useEffect(() => {
-        fetchDashboardData();
-
-        // Auto-refresh cada 30 segundos
-        const timer = setInterval(fetchDashboardData, 30000);
+        fetchGlobalData(true);
+        const timer = setInterval(() => fetchGlobalData(false), 60000);
         return () => clearInterval(timer);
-    }, [fetchDashboardData]);
+    }, [fetchGlobalData]);
+
+    // Efecto 2: Datos del Top (Dependen del periodo)
+    useEffect(() => {
+        fetchTopData(true);
+        const timer = setInterval(() => fetchTopData(false), 60000);
+        return () => clearInterval(timer);
+    }, [fetchTopData]);
 
 
 
@@ -112,7 +123,7 @@ const Home = () => {
                 <RecentAuctionsTable data={subastasRecientes} loading={loading} />
                 <TopClientsTable
                     data={topClientes}
-                    loading={loading}
+                    loading={topLoading || loading}
                     periodo={periodo}
                     onPeriodChange={setPeriodo}
                 />
