@@ -22,6 +22,7 @@ const Home = () => {
     const [error, setError] = useState(null);
 
     // Estados para los datos necesarios
+    const [periodo, setPeriodo] = useState('1m');
     const [resumen, setResumen] = useState(null);
     const [subastasRecientes, setSubastasRecientes] = useState([]);
     const [topClientes, setTopClientes] = useState([]);
@@ -31,15 +32,15 @@ const Home = () => {
             setLoading(true);
             setError(null);
 
-            // Llamadas paralelas solo para lo que mostramos
+            // Llamadas paralelas con el periodo seleccionado
             const [
                 resResumen,
                 resRecientes,
                 resTop
             ] = await Promise.all([
-                axios.get(`/subastas/dashboard/resumen/`),
-                axios.get(`/subastas/dashboard/subastas-recientes/`),
-                axios.get(`/subastas/dashboard/top-clientes/?periodo=año`) // Por defecto año para el top
+                axios.get(`/subastas/dashboard/resumen/`, { params: { periodo } }),
+                axios.get(`/subastas/dashboard/subastas-recientes/`, { params: { periodo } }),
+                axios.get(`/subastas/dashboard/top-clientes/`, { params: { periodo } })
             ]);
 
             setResumen(resResumen.data);
@@ -52,7 +53,7 @@ const Home = () => {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [periodo]);
 
     useEffect(() => {
         fetchDashboardData();
@@ -71,6 +72,8 @@ const Home = () => {
                 <div>
                     <h1 className="text-xl font-bold text-gray-900">Dashboard Ejecutivo</h1>
                 </div>
+
+                {/* Filtro de Tiempo REMOVIDO de aquí y movido a Top Clientes */}
             </div>
 
             {error && (
@@ -107,7 +110,12 @@ const Home = () => {
             {/* Tablas - Grid Lado a Lado (Preferencia del usuario + Compacto para evitar scroll) */}
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 pb-4">
                 <RecentAuctionsTable data={subastasRecientes} loading={loading} />
-                <TopClientsTable data={topClientes} loading={loading} />
+                <TopClientsTable
+                    data={topClientes}
+                    loading={loading}
+                    periodo={periodo}
+                    onPeriodChange={setPeriodo}
+                />
             </div>
         </div>
     );

@@ -4,7 +4,7 @@ import { Badge } from '../common';
 /**
  * TopClientsTable - Tabla con ranking de mejores clientes.
  */
-const TopClientsTable = ({ data, loading = false }) => {
+const TopClientsTable = ({ data, loading = false, periodo, onPeriodChange }) => {
     const navigate = useNavigate();
 
     if (loading) {
@@ -46,8 +46,23 @@ const TopClientsTable = ({ data, loading = false }) => {
 
     return (
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden h-full flex flex-col">
-            <div className="px-6 py-4 border-b border-gray-200">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between gap-4">
                 <h3 className="text-base font-medium text-gray-900">Top Clientes</h3>
+
+                {/* Selector de Periodo Local */}
+                <select
+                    value={periodo}
+                    onChange={(e) => onPeriodChange(e.target.value)}
+                    className="bg-gray-50 border border-gray-300 text-gray-900 text-[10px] font-medium rounded-md focus:ring-blue-500 focus:border-blue-500 block p-1 px-2 shadow-sm"
+                >
+                    <option value="semana">Semana</option>
+                    <option value="1m">Mes</option>
+                    <option value="2m">2m</option>
+                    <option value="3m">3m</option>
+                    <option value="6m">6m</option>
+                    <option value="año">Año</option>
+                    <option value="todo">Todo</option>
+                </select>
             </div>
             <div className="overflow-x-auto flex-1">
                 <table className="min-w-full divide-y divide-gray-200">

@@ -374,10 +374,8 @@ class ClienteViewSet(viewsets.ModelViewSet):
         # En curso: Subastas donde está participando y aún no terminan
         subastas_en_curso = len(activas_ids)
         
-        # 4. Métricas monetarias
-        agg = ofertas_validas.aggregate(monto_promedio=Avg('monto'), monto_maximo=Max('monto'))
-        monto_promedio = agg.get('monto_promedio') or 0
-        monto_maximo = agg.get('monto_maximo') or 0
+        # 4. Auditoría
+        # Métricas monetarias REMOVIDAS a petición
 
         # 5. Auditoría
         ultima = ofertas_validas.order_by('-fecha_oferta').first()
@@ -389,7 +387,5 @@ class ClienteViewSet(viewsets.ModelViewSet):
             'subastas_ganadas': subastas_ganadas,
             'subastas_perdidas': subastas_perdidas,
             'subastas_en_curso': subastas_en_curso,
-            'monto_promedio': float(monto_promedio),
-            'monto_maximo': float(monto_maximo),
             'ultima_participacion': ultima_participacion,
         })
