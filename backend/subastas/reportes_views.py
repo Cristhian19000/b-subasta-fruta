@@ -159,7 +159,16 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
             cell = ws.cell(row=2, column=col_num)
             cell.value = header
             cell.font = header_font
-            cell.fill = header_fill
+            
+            # COLORES DIFERENCIADOS PARA CABECERAS
+            # Datos de Packing (Cols 2-7): Naranja
+            if 2 <= col_num <= 7:
+                cell.fill = PatternFill(start_color='ED7D31', end_color='ED7D31', fill_type='solid')
+            # Datos de Subasta (Cols 8-14): Azul
+            elif 8 <= col_num <= 14:
+                cell.fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
+            else:
+                cell.fill = header_fill # Default (ID Subasta)
             cell.alignment = header_alignment
             cell.border = cell_border
         
@@ -184,9 +193,25 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
                 else:
                     estado_real = 'FINALIZADA'
 
-            # 2. Obtener información de la oferta ganadora
-            oferta_ganadora = subasta.oferta_ganadora
-            
+            # 2. Obtener información de la oferta ganadora (Optimizado en memoria)
+            # Usamos las ofertas ya pre-cargadas en subasta.ofertas.all()
+            # en lugar de subasta.oferta_ganadora que hace una nueva consulta.
+            ofertas = list(subasta.ofertas.all())
+            oferta_ganadora = None
+            if ofertas:
+                # Encontrar la de mayor monto (y luego fecha más reciente si hay empate, 
+                # aunque lógica de negocio dice que monto debe ser mayor)
+                oferta_ganadora = max(ofertas, key=lambda o: o.monto)
+                # Validar si realmente es ganadora (flag es_ganadora)
+                if not oferta_ganadora.es_ganadora:
+                     # Si por alguna razón la de mayor monto no está marcada (error de consistencia?)
+                     # buscamos la que tenga es_ganadora=True
+                     ganadoras = [o for o in ofertas if o.es_ganadora]
+                     if ganadoras:
+                         oferta_ganadora = ganadoras[0]
+                     else:
+                         oferta_ganadora = None
+
             # 3. Determinar qué mostrar como ganador según el estado dinámico
             if estado_real == 'FINALIZADA':
                 ganador_nombre = oferta_ganadora.cliente.nombre_razon_social if oferta_ganadora else 'Sin ofertas'
@@ -544,7 +569,8 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         queryset = PackingSemanal.objects.select_related('empresa').prefetch_related(
             'tipos', 
             'tipos__tipo_fruta', 
-            'tipos__detalles'
+            'tipos__detalles',
+            'tipos__detalles__subasta'  # PREFETCH CRÍTICO: Evita N+1 en el bucle
         ).order_by('-fecha_inicio_semana', 'empresa__nombre')
         
         # Filtros de fecha
@@ -652,12 +678,16 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
                 detalles_queryset = tipo.detalles.all()
                 detalles_dict = {d.dia: d for d in detalles_queryset}
                 
-                # --- CALCULAR ESTADO ESPECÍFICO PARA ESTE TIPO ---
-                from subastas.models import Subasta
-                subastas_tipo = Subasta.objects.filter(packing_detalle__in=detalles_queryset)
+                # --- CALCULAR ESTADO ESPECÍFICO PARA ESTE TIPO (Optimizado) ---
+                # Ya no consultamos la BD, usamos los objetos pre-cargados
+                subastas_tipo = []
+                for detalle in detalles_queryset:
+                    if hasattr(detalle, 'subasta'):
+                        subastas_tipo.append(detalle.subasta)
+                
                 estados_list = [s.estado_calculado for s in subastas_tipo]
                 
-                if not subastas_tipo.exists():
+                if not subastas_tipo:
                     estado_tipo = "PROYECTADO"
                 else:
                     if 'ACTIVA' in estados_list:
@@ -720,12 +750,10 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
                         detalle_dia = detalles_dict.get(dia_nombre)
                         
                         if detalle_dia and value > 0:
-                            try:
-                                subasta_dia = Subasta.objects.get(packing_detalle=detalle_dia)
-                                if subasta_dia.estado_calculado == 'CANCELADA':
-                                    cell.fill = fill_cancelada
-                            except Subasta.DoesNotExist:
-                                pass 
+                            # Usamos hasattr para evitar consultas N+1
+                            if hasattr(detalle_dia, 'subasta'):
+                                if detalle_dia.subasta.estado_calculado == 'CANCELADA':
+                                    cell.fill = fill_cancelada 
                 
                 row_num += 1
         
