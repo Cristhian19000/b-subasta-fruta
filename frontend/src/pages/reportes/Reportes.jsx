@@ -21,6 +21,15 @@ const Reportes = () => {
      * Maneja la descarga del reporte de subastas Excel.
      */
     const handleDescargarReporteSubastas = async () => {
+        // Validar que la fecha de inicio sea obligatoria
+        if (!fechaInicioSubasta) {
+            setMensaje({
+                tipo: 'error',
+                texto: 'La fecha de inicio es obligatoria para generar el reporte de subastas.'
+            });
+            return;
+        }
+
         // Validaciones opcionales: solo si se proporcionan ambas, verificar orden
         if (fechaInicioSubasta && fechaFinSubasta && new Date(fechaInicioSubasta) > new Date(fechaFinSubasta)) {
             setMensaje({
@@ -37,6 +46,15 @@ const Reportes = () => {
      * Maneja la descarga del reporte de packing Excel.
      */
     const handleDescargarReportePacking = async () => {
+        // Validar que la fecha de inicio sea obligatoria
+        if (!fechaInicioPacking) {
+            setMensaje({
+                tipo: 'error',
+                texto: 'La fecha de inicio es obligatoria para generar el reporte de packing.'
+            });
+            return;
+        }
+
         // Validaciones opcionales: solo si se proporcionan ambas, verificar orden
         if (fechaInicioPacking && fechaFinPacking && new Date(fechaInicioPacking) > new Date(fechaFinPacking)) {
             setMensaje({

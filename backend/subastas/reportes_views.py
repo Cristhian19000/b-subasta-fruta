@@ -58,6 +58,13 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         fecha_inicio_str = request.query_params.get('fecha_inicio', None)
         fecha_fin_str = request.query_params.get('fecha_fin', None)
         
+        # Validar que fecha_inicio sea obligatoria
+        if not fecha_inicio_str:
+            return Response(
+                {'error': 'La fecha de inicio es obligatoria para generar el reporte.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
         # Construir queryset base con todas las relaciones necesarias
         queryset = Subasta.objects.select_related(
             'packing_detalle',
@@ -580,6 +587,13 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         # Parámetros de filtro
         fecha_inicio_str = request.query_params.get('fecha_inicio', None)
         fecha_fin_str = request.query_params.get('fecha_fin', None)
+        
+        # Validar que fecha_inicio sea obligatoria
+        if not fecha_inicio_str:
+            return Response(
+                {'error': 'La fecha de inicio es obligatoria para generar el reporte.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         
         # Queryset base
         queryset = PackingSemanal.objects.select_related('empresa').prefetch_related(
