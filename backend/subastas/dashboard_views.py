@@ -387,11 +387,13 @@ class DashboardViewSet(viewsets.ViewSet):
                     'estatus_ficha': oferta.cliente.estatus_ficha,
                     'total_compras': 0,
                     'valor_total': Decimal('0'),
-                    'subastas_ganadas': 0
+                    'subastas_ganadas': 0,
+                    'montos': []  # Lista para calcular min/avg/max
                 }
             clientes_stats[cliente_id]['total_compras'] += 1
             clientes_stats[cliente_id]['valor_total'] += oferta.monto
             clientes_stats[cliente_id]['subastas_ganadas'] += 1
+            clientes_stats[cliente_id]['montos'].append(oferta.monto)
         
         # Ordenar por valor total y tomar top 10
         top_clientes = sorted(
@@ -400,19 +402,24 @@ class DashboardViewSet(viewsets.ViewSet):
             reverse=True
         )[:10]
         
-        # Formatear datos
-        datos = [
-            {
-                'id': item.get('id'), # Asegurar que tenemos el ID
+        # Formatear datos con métricas estadísticas
+        datos = []
+        for item in top_clientes:
+            montos = item['montos']
+            datos.append({
+                'id': item.get('id'),
                 'cliente_nombre': item['cliente_nombre'],
                 'sede': item.get('sede', 'Sin sede'),
                 'estatus_ficha': item.get('estatus_ficha', 'pendiente'),
                 'total_compras': item['total_compras'],
-                'valor_total': float(item['valor_total']), # Lo mantenemos en el JSON por si acaso, pero el frontend no lo mostrará
-                'subastas_ganadas': item['subastas_ganadas']
-            }
-            for item in top_clientes
-        ]
+                'valor_total': float(item['valor_total']),
+                'subastas_ganadas': item['subastas_ganadas'],
+                # Métricas estadísticas para box plot y tabla
+                'monto_minimo': float(min(montos)) if montos else 0,
+                'monto_promedio': float(sum(montos) / len(montos)) if montos else 0,
+                'monto_maximo': float(max(montos)) if montos else 0,
+                'montos_lista': [float(m) for m in montos]
+            })
         
         return Response(datos)
     

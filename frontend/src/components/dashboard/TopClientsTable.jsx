@@ -80,6 +80,15 @@ const TopClientsTable = ({ data, loading = false, periodo, onPeriodChange }) => 
                             <th className="px-3 py-3 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-tight">
                                 Compras
                             </th>
+                            <th className="px-2 py-3 text-right text-[10px] font-semibold text-gray-500 uppercase tracking-tight">
+                                Min
+                            </th>
+                            <th className="px-2 py-3 text-right text-[10px] font-semibold text-gray-500 uppercase tracking-tight">
+                                Avg
+                            </th>
+                            <th className="px-2 py-3 text-right text-[10px] font-semibold text-gray-500 uppercase tracking-tight">
+                                Max
+                            </th>
                             <th className="px-3 py-3 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-tight">
                                 Ficha
                             </th>
@@ -107,6 +116,21 @@ const TopClientsTable = ({ data, loading = false, periodo, onPeriodChange }) => 
                                 </td>
                                 <td className="px-3 py-2.5 whitespace-nowrap text-xs text-gray-600">
                                     <span className="font-bold text-gray-900">{cliente.subastas_ganadas}</span> sub.
+                                </td>
+                                <td className="px-2 py-2.5 whitespace-nowrap text-right">
+                                    <span className="text-[10px] text-blue-600 font-medium">
+                                        {cliente.monto_minimo ? `S/ ${cliente.monto_minimo.toFixed(2)}` : '-'}
+                                    </span>
+                                </td>
+                                <td className="px-2 py-2.5 whitespace-nowrap text-right">
+                                    <span className="text-[10px] text-emerald-600 font-semibold">
+                                        {cliente.monto_promedio ? `S/ ${cliente.monto_promedio.toFixed(2)}` : '-'}
+                                    </span>
+                                </td>
+                                <td className="px-2 py-2.5 whitespace-nowrap text-right">
+                                    <span className="text-[10px] text-amber-600 font-medium">
+                                        {cliente.monto_maximo ? `S/ ${cliente.monto_maximo.toFixed(2)}` : '-'}
+                                    </span>
                                 </td>
                                 <td className="px-3 py-2.5 whitespace-nowrap">
                                     <Badge variant={cliente.estatus_ficha === 'recepcionado' ? 'success' : 'warning'} className="text-[9px] px-1.5 py-0">
