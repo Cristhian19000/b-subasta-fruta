@@ -4,8 +4,10 @@
 
 import { useState } from 'react';
 import { descargarReporteSubastas, descargarReporteClientes, descargarReportePacking } from '../../api/reportes';
+import { usePermissions } from '../../hooks/usePermissions';
 
 const Reportes = () => {
+    const { hasPermission, isAdmin } = usePermissions();
     // Estados para Subastas
     const [fechaInicioSubasta, setFechaInicioSubasta] = useState('');
     const [fechaFinSubasta, setFechaFinSubasta] = useState('');
@@ -21,6 +23,15 @@ const Reportes = () => {
      * Maneja la descarga del reporte de subastas Excel.
      */
     const handleDescargarReporteSubastas = async () => {
+        // Validar que la fecha de inicio sea obligatoria
+        if (!fechaInicioSubasta) {
+            setMensaje({
+                tipo: 'error',
+                texto: 'La fecha de inicio es obligatoria para generar el reporte de subastas.'
+            });
+            return;
+        }
+
         // Validaciones opcionales: solo si se proporcionan ambas, verificar orden
         if (fechaInicioSubasta && fechaFinSubasta && new Date(fechaInicioSubasta) > new Date(fechaFinSubasta)) {
             setMensaje({
@@ -37,6 +48,15 @@ const Reportes = () => {
      * Maneja la descarga del reporte de packing Excel.
      */
     const handleDescargarReportePacking = async () => {
+        // Validar que la fecha de inicio sea obligatoria
+        if (!fechaInicioPacking) {
+            setMensaje({
+                tipo: 'error',
+                texto: 'La fecha de inicio es obligatoria para generar el reporte de packing.'
+            });
+            return;
+        }
+
         // Validaciones opcionales: solo si se proporcionan ambas, verificar orden
         if (fechaInicioPacking && fechaFinPacking && new Date(fechaInicioPacking) > new Date(fechaFinPacking)) {
             setMensaje({
@@ -163,16 +183,23 @@ const Reportes = () => {
                         </div>
                     </div>
 
-                    <button
-                        onClick={handleDescargarReporteSubastas}
-                        disabled={loading !== null}
-                        className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-white transition-all duration-200 shadow-sm ${loading === 'subastas' ? 'bg-blue-400' : loading !== null ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 active:scale-95'}`}
-                    >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        <span>{loading === 'subastas' ? 'Generando...' : 'Descargar Excel'}</span>
-                    </button>
+                    {(isAdmin() || hasPermission('reportes', 'generate_auctions')) && (
+                        <button
+                            onClick={handleDescargarReporteSubastas}
+                            disabled={loading !== null}
+                            className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-white transition-all duration-200 shadow-sm ${loading === 'subastas' ? 'bg-blue-400' : loading !== null ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 active:scale-95'}`}
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <span>{loading === 'subastas' ? 'Generando...' : 'Descargar Excel'}</span>
+                        </button>
+                    )}
+                    {!isAdmin() && !hasPermission('reportes', 'generate_auctions') && (
+                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center text-sm text-gray-500">
+                            No tienes permiso para generar este reporte
+                        </div>
+                    )}
                 </div>
 
                 {/* Reporte de Packing */}
@@ -215,16 +242,23 @@ const Reportes = () => {
                         </div>
                     </div>
 
-                    <button
-                        onClick={handleDescargarReportePacking}
-                        disabled={loading !== null}
-                        className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-white transition-all duration-200 shadow-sm ${loading === 'packing' ? 'bg-orange-400' : loading !== null ? 'bg-gray-400 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700 active:scale-95'}`}
-                    >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        <span>{loading === 'packing' ? 'Generando...' : 'Descargar Excel'}</span>
-                    </button>
+                    {(isAdmin() || hasPermission('reportes', 'generate_packings')) && (
+                        <button
+                            onClick={handleDescargarReportePacking}
+                            disabled={loading !== null}
+                            className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-white transition-all duration-200 shadow-sm ${loading === 'packing' ? 'bg-orange-400' : loading !== null ? 'bg-gray-400 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700 active:scale-95'}`}
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <span>{loading === 'packing' ? 'Generando...' : 'Descargar Excel'}</span>
+                        </button>
+                    )}
+                    {!isAdmin() && !hasPermission('reportes', 'generate_packings') && (
+                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center text-sm text-gray-500">
+                            No tienes permiso para generar este reporte
+                        </div>
+                    )}
                 </div>
 
                 {/* Reporte de Clientes */}
@@ -243,16 +277,23 @@ const Reportes = () => {
                                 Información completa con datos de contacto y estadísticas de participación en subastas
                             </p>
                         </div>
-                        <button
-                            onClick={handleDescargarReporteClientes}
-                            disabled={loading !== null}
-                            className={`flex items-center gap-2 px-6 py-2.5 rounded-lg font-medium text-white transition-all duration-200 shadow-sm ${loading === 'clientes' ? 'bg-green-400' : loading !== null ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 active:scale-95'}`}
-                        >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                            <span>{loading === 'clientes' ? 'Generando...' : 'Descargar Excel'}</span>
-                        </button>
+                        {(isAdmin() || hasPermission('reportes', 'generate_clients')) && (
+                            <button
+                                onClick={handleDescargarReporteClientes}
+                                disabled={loading !== null}
+                                className={`flex items-center gap-2 px-6 py-2.5 rounded-lg font-medium text-white transition-all duration-200 shadow-sm ${loading === 'clientes' ? 'bg-green-400' : loading !== null ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 active:scale-95'}`}
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                <span>{loading === 'clientes' ? 'Generando...' : 'Descargar Excel'}</span>
+                            </button>
+                        )}
+                        {!isAdmin() && !hasPermission('reportes', 'generate_clients') && (
+                            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center text-sm text-gray-500">
+                                No tienes permiso para generar este reporte
+                            </div>
+                        )}
                     </div>
                 </div>
 

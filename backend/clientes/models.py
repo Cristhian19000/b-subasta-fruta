@@ -176,6 +176,16 @@ class Cliente(models.Model):
         auto_now=True,
         verbose_name='Fecha de Actualización'
     )
+    
+    # Usuario administrador que creó este cliente
+    creado_por = models.ForeignKey(
+        'usuarios.PerfilUsuario', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='clientes_creados',
+        verbose_name='Creado por'
+    )
 
     password = models.CharField(
         max_length=128,

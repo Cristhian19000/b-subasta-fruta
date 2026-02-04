@@ -104,8 +104,20 @@ class SubastaListSerializer(serializers.ModelSerializer):
         ]
     
     def get_cliente_ganando(self, obj):
-        """Obtiene el cliente que va ganando."""
-        oferta = obj.oferta_ganadora
+        """Obtiene el cliente que va ganando (Optimizado)."""
+        # Intentar usar la lista precargada si existe
+        if hasattr(obj, 'ofertas') and hasattr(obj.ofertas, 'all'):
+             ofertas = list(obj.ofertas.all())
+             if not ofertas:
+                 return None
+             # Buscar oferta ganadora en memoria
+             from .models import Oferta
+             # Ordenar por monto descendente
+             oferta = max(ofertas, key=lambda o: o.monto)
+        else:
+            # Fallback a la query si no está precargado
+            oferta = obj.oferta_ganadora
+            
         if oferta:
             return {
                 'id': oferta.cliente.id,

@@ -164,14 +164,6 @@ const ClienteDetalle = ({ cliente, onEdit, onClose }) => {
                             <div className="text-xs text-gray-500">Subastas perdidas</div>
                             <div className="text-lg font-semibold">{stats.subastas_perdidas}</div>
                         </div>
-                        <div className="bg-white p-3 rounded shadow-sm">
-                            <div className="text-xs text-gray-500">Monto promedio</div>
-                            <div className="text-lg font-semibold">S/ {parseFloat(stats.monto_promedio || 0).toFixed(2)}</div>
-                        </div>
-                        <div className="bg-white p-3 rounded shadow-sm">
-                            <div className="text-xs text-gray-500">Monto máximo</div>
-                            <div className="text-lg font-semibold">S/ {parseFloat(stats.monto_maximo || 0).toFixed(2)}</div>
-                        </div>
                         <div className="col-span-2 bg-white p-3 rounded shadow-sm">
                             <div className="text-xs text-gray-500">Última participación</div>
                             <div className="text-sm">{stats.ultima_participacion ? new Date(stats.ultima_participacion).toLocaleString() : '—'}</div>

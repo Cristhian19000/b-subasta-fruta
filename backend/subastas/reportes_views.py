@@ -12,6 +12,7 @@ from rest_framework.permissions import IsAuthenticated
 from django.http import HttpResponse
 from django.db.models import Count, Max, Min
 from django.utils import timezone
+from usuarios.permissions import RBACPermission
 from datetime import datetime
 import pytz
 from openpyxl import Workbook
@@ -31,7 +32,24 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
     - GET /api/admin/reportes/subastas/excel/ - Generar reporte Excel
     """
     
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RBACPermission]
+    modulo_permiso = 'reportes'
+    
+    permisos_mapping = {
+        'excel': 'generate_auctions',
+        'clientes_excel': 'generate_clients',
+        'packing_excel': 'generate_packings',
+    }
+    
+    def _formato_semana(self, fecha_inicio, fecha_fin):
+        """
+        Formatea el rango de fechas al formato:
+        'Semana {num_semana} | {dd}/{mm}/{yyyy} - {dd}/{mm}/{yyyy}'
+        Ejemplo: Semana 8 | 16/02/2026 - 21/02/2026
+        """
+        semana = fecha_inicio.isocalendar()[1]
+        
+        return f"Semana {semana} | {fecha_inicio.strftime('%d/%m/%Y')} - {fecha_fin.strftime('%d/%m/%Y')}"
     
     @action(detail=False, methods=['get'])
     def excel(self, request):
@@ -47,6 +65,13 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         # Obtener parámetros de filtro
         fecha_inicio_str = request.query_params.get('fecha_inicio', None)
         fecha_fin_str = request.query_params.get('fecha_fin', None)
+        
+        # Validar que fecha_inicio sea obligatoria
+        if not fecha_inicio_str:
+            return Response(
+                {'error': 'La fecha de inicio es obligatoria para generar el reporte.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         
         # Construir queryset base con todas las relaciones necesarias
         queryset = Subasta.objects.select_related(
@@ -96,14 +121,9 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         titulo_fill = PatternFill(start_color='1F4788', end_color='1F4788', fill_type='solid')
         titulo_alignment = Alignment(horizontal='center', vertical='center')
         
-        # Estilo del encabezado de Packing (Naranja)
-        header_packing_font = Font(name='Calibri', size=11, bold=True, color='FFFFFF')
-        header_packing_fill = PatternFill(start_color='E46C0A', end_color='E46C0A', fill_type='solid')
-        
-        # Estilo del encabezado de Subasta (Azul)
-        header_subasta_font = Font(name='Calibri', size=11, bold=True, color='FFFFFF')
-        header_subasta_fill = PatternFill(start_color='1F4788', end_color='1F4788', fill_type='solid')
-        
+        # Estilo del encabezado de columnas
+        header_font = Font(name='Calibri', size=11, bold=True, color='FFFFFF')
+        header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
         header_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
         
         # Estilo de las celdas de datos
@@ -120,7 +140,7 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         # TÍTULO DEL REPORTE
         # =====================================================================
         
-        ws.merge_cells('A1:O1')
+        ws.merge_cells('A1:N1')
         cell_titulo = ws['A1']
         
         # Crear texto del título con rango de fechas
@@ -148,13 +168,12 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
             'Empresa',
             'Semana de Proyectado',
             'Día',
-            'Fecha de Proyección',
+            'Fecha Producción',
             'Tipo Fruta',
             'Kilos',
             'Estado',
             'Fecha Inicio',
             'Fecha Fin',
-            'Duración',
             'Precio Base',
             'Ganador',
             'Monto Ganador',
@@ -164,16 +183,19 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         for col_num, header in enumerate(headers, 1):
             cell = ws.cell(row=2, column=col_num)
             cell.value = header
+            cell.font = header_font
+            
+            # COLORES DIFERENCIADOS PARA CABECERAS
+            # Datos de Packing (Cols 2-7): Naranja
+            if 2 <= col_num <= 7:
+                cell.fill = PatternFill(start_color='ED7D31', end_color='ED7D31', fill_type='solid')
+            # Datos de Subasta (Cols 8-14): Azul
+            elif 8 <= col_num <= 14:
+                cell.fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
+            else:
+                cell.fill = header_fill # Default (ID Subasta)
             cell.alignment = header_alignment
             cell.border = cell_border
-            
-            # Aplicar color según el grupo (1-7: Packing, 8-15: Subasta)
-            if 1 <= col_num <= 7:
-                cell.font = header_packing_font
-                cell.fill = header_packing_fill
-            else:
-                cell.font = header_subasta_font
-                cell.fill = header_subasta_fill
         
         ws.row_dimensions[2].height = 35
         
@@ -196,9 +218,25 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
                 else:
                     estado_real = 'FINALIZADA'
 
-            # 2. Obtener información de la oferta ganadora
-            oferta_ganadora = subasta.oferta_ganadora
-            
+            # 2. Obtener información de la oferta ganadora (Optimizado en memoria)
+            # Usamos las ofertas ya pre-cargadas en subasta.ofertas.all()
+            # en lugar de subasta.oferta_ganadora que hace una nueva consulta.
+            ofertas = list(subasta.ofertas.all())
+            oferta_ganadora = None
+            if ofertas:
+                # Encontrar la de mayor monto (y luego fecha más reciente si hay empate, 
+                # aunque lógica de negocio dice que monto debe ser mayor)
+                oferta_ganadora = max(ofertas, key=lambda o: o.monto)
+                # Validar si realmente es ganadora (flag es_ganadora)
+                if not oferta_ganadora.es_ganadora:
+                     # Si por alguna razón la de mayor monto no está marcada (error de consistencia?)
+                     # buscamos la que tenga es_ganadora=True
+                     ganadoras = [o for o in ofertas if o.es_ganadora]
+                     if ganadoras:
+                         oferta_ganadora = ganadoras[0]
+                     else:
+                         oferta_ganadora = None
+
             # 3. Determinar qué mostrar como ganador según el estado dinámico
             if estado_real == 'FINALIZADA':
                 ganador_nombre = oferta_ganadora.cliente.nombre_razon_social if oferta_ganadora else 'Sin ofertas'
@@ -226,33 +264,11 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
             fecha_inicio_peru = subasta.fecha_hora_inicio.astimezone(lima_tz)
             fecha_fin_peru = subasta.fecha_hora_fin.astimezone(lima_tz)
             
-            # Formatear la Semana: "Semana 8 | 16 feb. 2026 - 21 feb. 2026"
-            # Mapeo de meses en español (abreviado)
-            meses_es = {
-                1: 'ene.', 2: 'feb.', 3: 'mar.', 4: 'abr.', 5: 'may.', 6: 'jun.',
-                7: 'jul.', 8: 'ago.', 9: 'sep.', 10: 'oct.', 11: 'nov.', 12: 'dic.'
-            }
-            num_semana = packing_semanal.fecha_inicio_semana.isocalendar()[1]
-            f_ini = packing_semanal.fecha_inicio_semana
-            f_fin = packing_semanal.fecha_fin_semana
-            
-            semana_format = f"Semana {num_semana} | {f_ini.day} {meses_es[f_ini.month]} {f_ini.year} - {f_fin.day} {meses_es[f_fin.month]} {f_fin.year}"
-            
-            # Calcular duración
-            delta = subasta.fecha_hora_fin - subasta.fecha_hora_inicio
-            total_horas = delta.total_seconds() / 3600
-            if total_horas == 1:
-                duracion_str = "1 hora"
-            elif total_horas.is_integer():
-                duracion_str = f"{int(total_horas)} horas"
-            else:
-                duracion_str = f"{total_horas:.1f} horas"
-
             # Datos de la fila
             row_data = [
                 subasta.id,
                 packing_semanal.empresa.nombre,
-                semana_format,
+                self._formato_semana(packing_semanal.fecha_inicio_semana, packing_semanal.fecha_fin_semana),
                 detalle.get_dia_display(),
                 detalle.fecha.strftime('%d/%m/%Y'),
                 packing_tipo.tipo_fruta.nombre,
@@ -260,7 +276,6 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
                 estado_real, # Usamos el estado calculado en tiempo real
                 fecha_inicio_peru.strftime('%d/%m/%Y %H:%M'),  # Horario de Perú
                 fecha_fin_peru.strftime('%d/%m/%Y %H:%M'),      # Horario de Perú
-                duracion_str,
                 float(subasta.precio_base),
                 ganador_nombre,
                 monto_ganador,
@@ -276,7 +291,7 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
                 cell.border = cell_border
                 
                 # Formato especial para números
-                if col_num in [7, 12, 14]:  # Kilos, Precio Base, Monto Ganador
+                if col_num in [7, 11, 13]:  # Kilos, Precio Base, Monto Ganador
                     cell.number_format = '#,##0.00'
             
             row_num += 1
@@ -288,19 +303,18 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         column_widths = {
             'A': 12,  # ID Subasta
             'B': 25,  # Empresa
-            'C': 35,  # Semana de Proyectado
+            'C': 35,  # Semana (Aumentado para mostrar "Semana X | dd/mm/yyyy...")
             'D': 12,  # Día
-            'E': 20,  # Fecha de Proyección
+            'E': 18,  # Fecha Producción
             'F': 20,  # Tipo Fruta
             'G': 12,  # Kilos
             'H': 15,  # Estado
             'I': 18,  # Fecha Inicio
             'J': 18,  # Fecha Fin
-            'K': 15,  # Duración
-            'L': 14,  # Precio Base
-            'M': 30,  # Ganador
-            'N': 15,  # Montos
-            'O': 14,  # Total Ofertas
+            'K': 14,  # Precio Base
+            'L': 30,  # Ganador
+            'M': 15,  # Monto Ganador
+            'N': 14,  # Total Ofertas
         }
         
         for col_letter, width in column_widths.items():
@@ -311,12 +325,7 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         # =====================================================================
         
         if row_num > 3:  # Solo si hay datos
-            ws.auto_filter.ref = f"A2:O{row_num-1}"
-            
-            # Formato moneda para columnas L y N (Precio Base y Monto Ganador)
-            for r in range(3, row_num):
-                ws[f'L{r}'].number_format = '"S/" #,##0.00'
-                ws[f'N{r}'].number_format = '"S/" #,##0.00'
+            ws.auto_filter.ref = f"A2:N{row_num-1}"
         
         # =====================================================================
         # GENERAR RESPUESTA HTTP CON EL ARCHIVO
@@ -398,6 +407,7 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         
         headers = [
             'RUC/DNI',
+            'Fecha Registro',
             'Nombre / Razón Social',
             'Tipo',
             'Sede',
@@ -417,9 +427,7 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
             'Subastas Perdidas',
             'Subastas en Curso',
             'Total Ofertas',
-            'Monto Promedio (S/)',
-            'Monto Máximo (S/)',
-            'Fecha Registro'
+            'Creado Por'
         ]
         
         for col_num, header in enumerate(headers, 1):
@@ -465,13 +473,25 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
             subastas_en_curso = len(activas_ids)
             
             # Métricas monetarias
-            agg = ofertas_validas.aggregate(promedio=Avg('monto'), maximo=Max('monto'))
-            monto_promedio = float(agg.get('promedio') or 0.0)
-            monto_maximo = float(agg.get('maximo') or 0.0)
+            # Métricas monetarias REMOVIDAS a petición
+            # agg = ofertas_validas.aggregate(promedio=Avg('monto'), maximo=Max('monto'))
             
+            # Obtener creador (compatibilidad con `PerfilUsuario` que envuelve a `User`)
+            creador = "Sistema/Desconocido"
+            perfil = getattr(cliente, 'creado_por', None)
+            if perfil:
+                # PerfilUsuario tiene un OneToOne `user` con los campos reales
+                user = getattr(perfil, 'user', None)
+                if user:
+                    nombre_completo = " ".join(filter(None, [getattr(user, 'first_name', ''), getattr(user, 'last_name', '')])).strip()
+                    creador = nombre_completo or getattr(user, 'username', None) or str(perfil)
+                else:
+                    creador = str(perfil)
+
             # Datos de la fila
             row_data = [
                 cliente.ruc_dni,
+                cliente.fecha_creacion.strftime('%d/%m/%Y'),
                 cliente.nombre_razon_social,
                 cliente.get_tipo_display(),
                 cliente.sede,
@@ -491,9 +511,7 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
                 subastas_perdidas,
                 subastas_en_curso,
                 ofertas_validas.count(),     # Total Ofertas
-                monto_promedio,
-                monto_maximo,
-                cliente.fecha_creacion.strftime('%d/%m/%Y')
+                creador
             ]
             
             # Escribir la fila
@@ -512,28 +530,27 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         
         column_widths = {
             'A': 15,  # RUC/DNI
-            'B': 35,  # Nombre / Razón Social
-            'C': 18,  # Tipo
-            'D': 20,  # Sede
-            'E': 15,  # Estado
-            'F': 25,  # Contacto 1
-            'G': 20,  # Cargo 1
-            'H': 15,  # Teléfono 1
-            'I': 30,  # Email 1
-            'J': 25,  # Contacto 2
-            'K': 20,  # Cargo 2
-            'L': 15,  # Teléfono 2
-            'M': 30,  # Email 2
-            'N': 18,  # Estatus Ficha
-            'O': 14,  # Correo Conf.
-            'P': 16,  # Participación
-            'Q': 16,  # Subastas Ganadas
-            'R': 16,  # Subastas Perdidas
-            'S': 16,  # Subastas en Curso
-            'T': 15,  # Total Ofertas
-            'U': 18,  # Monto Promedio
-            'V': 18,  # Monto Máximo
-            'W': 18,  # Fecha Registro
+            'B': 18,  # Fecha Registro (MOVIDO)
+            'C': 35,  # Nombre / Razón Social
+            'D': 18,  # Tipo
+            'E': 20,  # Sede
+            'F': 15,  # Estado
+            'G': 25,  # Contacto 1
+            'H': 20,  # Cargo 1
+            'I': 15,  # Teléfono 1
+            'J': 30,  # Email 1
+            'K': 25,  # Contacto 2
+            'L': 20,  # Cargo 2
+            'M': 15,  # Teléfono 2
+            'N': 30,  # Email 2
+            'O': 18,  # Estatus Ficha
+            'P': 14,  # Correo Conf.
+            'Q': 16,  # Participación
+            'R': 16,  # Subastas Ganadas
+            'S': 16,  # Subastas Perdidas
+            'T': 16,  # Subastas en Curso
+            'U': 15,  # Total Ofertas
+            'V': 25,  # Creado Por (NUEVO)
         }
         
         for col_letter, width in column_widths.items():
@@ -544,12 +561,10 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         # =====================================================================
         
         if row_num > 3:  # Solo si hay datos
-            ws.auto_filter.ref = f"A2:W{row_num-1}"
+            ws.auto_filter.ref = f"A2:V{row_num-1}"
             
-            # Formatear columnas de moneda (U y V)
-            for r in range(3, row_num):
-                ws[f'U{r}'].number_format = '"S/" #,##0.00'
-                ws[f'V{r}'].number_format = '"S/" #,##0.00'
+            # Formato moneda eliminado
+        
         
         # =====================================================================
         # GENERAR RESPUESTA HTTP CON EL ARCHIVO
@@ -581,11 +596,19 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         fecha_inicio_str = request.query_params.get('fecha_inicio', None)
         fecha_fin_str = request.query_params.get('fecha_fin', None)
         
+        # Validar que fecha_inicio sea obligatoria
+        if not fecha_inicio_str:
+            return Response(
+                {'error': 'La fecha de inicio es obligatoria para generar el reporte.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
         # Queryset base
         queryset = PackingSemanal.objects.select_related('empresa').prefetch_related(
             'tipos', 
             'tipos__tipo_fruta', 
-            'tipos__detalles'
+            'tipos__detalles',
+            'tipos__detalles__subasta'  # PREFETCH CRÍTICO: Evita N+1 en el bucle
         ).order_by('-fecha_inicio_semana', 'empresa__nombre')
         
         # Filtros de fecha
@@ -643,7 +666,7 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         
         # Encabezados
         headers = [
-            'Empresa', 'Semana', 'Tipo Fruta', 
+            'Empresa', 'Semana de Proyectado', 'Tipo Fruta', 
             'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado',
             'KG Total', 'Estado', 'Observaciones'
         ]
@@ -667,7 +690,7 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
             if not tipos:
                 row_data = [
                     packing.empresa.nombre,
-                    f"{packing.fecha_inicio_semana.strftime('%d/%m/%Y')} - {packing.fecha_fin_semana.strftime('%d/%m/%Y')}",
+                    self._formato_semana(packing.fecha_inicio_semana, packing.fecha_fin_semana),
                     'Sin producción registrada',
                     0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
                     0.0,
@@ -693,12 +716,16 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
                 detalles_queryset = tipo.detalles.all()
                 detalles_dict = {d.dia: d for d in detalles_queryset}
                 
-                # --- CALCULAR ESTADO ESPECÍFICO PARA ESTE TIPO ---
-                from subastas.models import Subasta
-                subastas_tipo = Subasta.objects.filter(packing_detalle__in=detalles_queryset)
+                # --- CALCULAR ESTADO ESPECÍFICO PARA ESTE TIPO (Optimizado) ---
+                # Ya no consultamos la BD, usamos los objetos pre-cargados
+                subastas_tipo = []
+                for detalle in detalles_queryset:
+                    if hasattr(detalle, 'subasta'):
+                        subastas_tipo.append(detalle.subasta)
+                
                 estados_list = [s.estado_calculado for s in subastas_tipo]
                 
-                if not subastas_tipo.exists():
+                if not subastas_tipo:
                     estado_tipo = "PROYECTADO"
                 else:
                     if 'ACTIVA' in estados_list:
@@ -729,7 +756,7 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
                 
                 row_data = [
                     packing.empresa.nombre,
-                    f"{packing.fecha_inicio_semana.strftime('%d/%m/%Y')} - {packing.fecha_fin_semana.strftime('%d/%m/%Y')}",
+                    self._formato_semana(packing.fecha_inicio_semana, packing.fecha_fin_semana),
                     tipo.tipo_fruta.nombre,
                 ]
                 # Llenar los kilos para cada día
@@ -761,18 +788,16 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
                         detalle_dia = detalles_dict.get(dia_nombre)
                         
                         if detalle_dia and value > 0:
-                            try:
-                                subasta_dia = Subasta.objects.get(packing_detalle=detalle_dia)
-                                if subasta_dia.estado_calculado == 'CANCELADA':
-                                    cell.fill = fill_cancelada
-                            except Subasta.DoesNotExist:
-                                pass 
+                            # Usamos hasattr para evitar consultas N+1
+                            if hasattr(detalle_dia, 'subasta'):
+                                if detalle_dia.subasta.estado_calculado == 'CANCELADA':
+                                    cell.fill = fill_cancelada 
                 
                 row_num += 1
         
         # Anchos
         column_widths = {
-            'A': 25, 'B': 25, 'C': 20, 
+            'A': 25, 'B': 35, 'C': 20, # B aumentado para "Semana X | dd/mm/yyyy..."
             'D': 10, 'E': 10, 'F': 10, 'G': 10, 'H': 10, 'I': 10,
             'J': 15, 'K': 15, 'L': 40
         }

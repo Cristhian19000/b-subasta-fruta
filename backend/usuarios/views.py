@@ -12,32 +12,17 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
-from .models import PerfilUsuario
+from .models import PerfilUsuario, PerfilPermiso
 from .serializers import (
     UsuarioSerializer,
     UsuarioListSerializer,
     LoginSerializer,
-    UsuarioInfoSerializer
+    UsuarioInfoSerializer,
+    PerfilPermisoSerializer
 )
+from .permissions import SoloAdministradores, RBACPermission, requiere_permiso
 
 
-class EsAdministrador(permissions.BasePermission):
-    """
-    Permiso personalizado que solo permite acceso a administradores.
-    
-    Un administrador es:
-    - Un superusuario de Django
-    - Un usuario con perfil.es_administrador = True
-    """
-    
-    def has_permission(self, request, view):
-        if not request.user.is_authenticated:
-            return False
-        if request.user.is_superuser:
-            return True
-        if hasattr(request.user, 'perfil'):
-            return request.user.perfil.es_administrador
-        return False
 
 
 @api_view(['POST'])
@@ -142,7 +127,8 @@ class UsuarioViewSet(viewsets.ModelViewSet):
     
     queryset = User.objects.filter(is_superuser=False).select_related('perfil')
     serializer_class = UsuarioSerializer
-    permission_classes = [IsAuthenticated, EsAdministrador]
+    permission_classes = [IsAuthenticated, RBACPermission]
+    modulo_permiso = 'usuarios'
     
     def get_serializer_class(self):
         """Usar serializer simplificado para listados."""
@@ -161,6 +147,7 @@ class UsuarioViewSet(viewsets.ModelViewSet):
         )
     
     @action(detail=True, methods=['post'])
+    @requiere_permiso('usuarios', 'update')
     def activar(self, request, pk=None):
         """Activar un usuario desactivado."""
         usuario = self.get_object()
@@ -172,6 +159,7 @@ class UsuarioViewSet(viewsets.ModelViewSet):
         })
     
     @action(detail=True, methods=['post'])
+    @requiere_permiso('usuarios', 'update')
     def cambiar_password(self, request, pk=None):
         """Cambiar la contraseña de un usuario."""
         usuario = self.get_object()
@@ -186,3 +174,130 @@ class UsuarioViewSet(viewsets.ModelViewSet):
         usuario.set_password(nueva_password)
         usuario.save()
         return Response({'message': 'Contraseña actualizada correctamente'})
+
+
+class PerfilPermisoViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet para gestionar perfiles de permisos.
+    
+    Solo accesible por administradores.
+    
+    Endpoints:
+        - GET    /api/perfiles-permiso/                   -> Listar perfiles
+        - POST   /api/perfiles-permiso/                   -> Crear perfil
+        - GET    /api/perfiles-permiso/{id}/              -> Detalle de perfil
+        - PUT    /api/perfiles-permiso/{id}/              -> Actualizar perfil
+        - DELETE /api/perfiles-permiso/{id}/              -> Eliminar perfil
+        - GET    /api/perfiles-permiso/estructura_permisos/ -> Estructura de permisos disponibles
+    """
+    
+    queryset = PerfilPermiso.objects.all()
+    serializer_class = PerfilPermisoSerializer
+    permission_classes = [IsAuthenticated, RBACPermission]
+    modulo_permiso = 'usuarios'
+    permisos_mapping = {
+        'list': 'view_list',
+        'retrieve': 'view_list',
+        'create': 'manage_profiles',
+        'update': 'manage_profiles',
+        'partial_update': 'manage_profiles',
+        'destroy': 'manage_profiles',
+        'estructura_permisos': 'manage_profiles',
+    }
+    
+    def perform_create(self, serializer):
+        """Guardar quién creó el perfil."""
+        # Obtener el perfil del usuario autenticado
+        creado_por = None
+        if hasattr(self.request.user, 'perfil'):
+            creado_por = self.request.user.perfil
+        
+        serializer.save(creado_por=creado_por)
+    
+    @action(detail=False, methods=['get'])
+    def estructura_permisos(self, request):
+        """
+        Retorna la estructura completa de módulos y permisos disponibles.
+        
+        GET /api/perfiles-permiso/estructura_permisos/
+        
+        Retorna un diccionario con todos los módulos del sistema y sus permisos.
+        """
+        estructura = {
+            'dashboard': {
+                'nombre': 'Dashboard',
+                'icono': 'LayoutDashboard',
+                'permisos': [
+                    {'codigo': 'view_dashboard', 'nombre': 'Ver Dashboard'},
+                    {'codigo': 'view_kpis', 'nombre': 'Ver KPIs y Estadísticas'}
+                ]
+            },
+            'clientes': {
+                'nombre': 'Clientes',
+                'icono': 'Users',
+                'permisos': [
+                    {'codigo': 'view_list', 'nombre': 'Ver Listado'},
+                    {'codigo': 'view_detail', 'nombre': 'Ver Detalle'},
+                    {'codigo': 'create', 'nombre': 'Crear Cliente'},
+                    {'codigo': 'update', 'nombre': 'Editar Cliente'},
+                    {'codigo': 'delete', 'nombre': 'Eliminar Cliente'}
+                ]
+            },
+            'packing': {
+                'nombre': 'Packing',
+                'icono': 'Package',
+                'permisos': [
+                    {'codigo': 'view_list', 'nombre': 'Ver Listado'},
+                    {'codigo': 'view_detail', 'nombre': 'Ver Detalle'},
+                    {'codigo': 'create', 'nombre': 'Crear Packing'},
+                    {'codigo': 'update', 'nombre': 'Editar Packing'},
+                    {'codigo': 'delete', 'nombre': 'Eliminar Packing'},
+                    {'codigo': 'create_auction', 'nombre': 'Crear Subasta desde Packing'}
+                ]
+            },
+            'subastas': {
+                'nombre': 'Subastas',
+                'icono': 'Gavel',
+                'permisos': [
+                    {'codigo': 'view_list', 'nombre': 'Ver Listado'},
+                    {'codigo': 'view_detail', 'nombre': 'Ver Detalle'},
+                    {'codigo': 'create', 'nombre': 'Crear Subasta'},
+                    {'codigo': 'update', 'nombre': 'Editar Subasta'},
+                    {'codigo': 'cancel', 'nombre': 'Cancelar Subasta'},
+                    {'codigo': 'view_bids', 'nombre': 'Ver Ofertas y Pujas'}
+                ]
+            },
+            'reportes': {
+                'nombre': 'Reportes',
+                'icono': 'FileText',
+                'permisos': [
+                    {'codigo': 'view_reports', 'nombre': 'Ver Reportes'},
+                    {'codigo': 'generate_clients', 'nombre': 'Generar Reporte de Clientes'},
+                    {'codigo': 'generate_auctions', 'nombre': 'Generar Reporte de Subastas'},
+                    {'codigo': 'generate_packings', 'nombre': 'Generar Reporte de Packings'}
+                ]
+            },
+            'catalogos': {
+                'nombre': 'Catálogos',
+                'icono': 'Database',
+                'permisos': [
+                    {'codigo': 'view_empresas', 'nombre': 'Ver Empresas'},
+                    {'codigo': 'manage_empresas', 'nombre': 'Gestionar Empresas'},
+                    {'codigo': 'view_tipos_fruta', 'nombre': 'Ver Tipos de Fruta'},
+                    {'codigo': 'manage_tipos_fruta', 'nombre': 'Gestionar Tipos de Fruta'}
+                ]
+            },
+            'usuarios': {
+                'nombre': 'Usuarios y Perfiles',
+                'icono': 'UserCog',
+                'permisos': [
+                    {'codigo': 'view_list', 'nombre': 'Ver Listado de Usuarios y Perfiles'},
+                    {'codigo': 'create', 'nombre': 'Crear Usuario'},
+                    {'codigo': 'update', 'nombre': 'Editar Usuario'},
+                    {'codigo': 'delete', 'nombre': 'Eliminar Usuario'},
+                    {'codigo': 'manage_profiles', 'nombre': 'Gestionar Perfiles de Permisos'}
+                ]
+            }
+        }
+        
+        return Response(estructura)

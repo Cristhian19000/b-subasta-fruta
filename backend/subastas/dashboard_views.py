@@ -13,6 +13,7 @@ from django.db.models.functions import TruncDate, TruncWeek, TruncMonth
 from django.utils import timezone
 from datetime import timedelta, datetime
 from decimal import Decimal
+from usuarios.permissions import RBACPermission
 
 from .models import Subasta, Oferta
 from modulo_packing.models import PackingSemanal, TipoFruta
@@ -26,8 +27,21 @@ class DashboardViewSet(viewsets.ViewSet):
     Proporciona estadísticas, gráficos y tablas para el dashboard principal.
     """
     
-    # Permitir acceso sin autenticación (ya autenticado en el frontend)
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, RBACPermission]
+    modulo_permiso = 'dashboard'
+    
+    permisos_mapping = {
+        'list': 'view_dashboard',
+        'estadisticas': 'view_kpis',
+        'tendencia_subastas': 'view_kpis',
+        'volumen_por_fruta': 'view_kpis',
+        'estado_packings': 'view_kpis',
+        'ingresos_periodo': 'view_kpis',
+        'subastas_recientes': 'view_dashboard',
+        'top_clientes': 'view_kpis',
+        'proximas_subastas': 'view_dashboard',
+        'resumen': 'view_dashboard', # Cualquier usuario con acceso al dashboard puede ver el resumen
+    }
     
     def list(self, request):
         """
@@ -48,23 +62,33 @@ class DashboardViewSet(viewsets.ViewSet):
             ]
         })
     
-    def _get_periodo_fechas(self, periodo='mes'):
+    def _get_periodo_fechas(self, periodo='1m'):
         """
         Calcula las fechas de inicio y fin según el período solicitado.
         
         Args:
-            periodo: 'semana', 'mes', o 'año'
+            periodo: 'semana', '1m', '2m', '3m', '6m', 'año', 'todo'
             
         Returns:
-            tuple: (fecha_inicio, fecha_fin)
+            tuple: (fecha_inicio, fecha_fin) o (None, None) para 'todo'
         """
         ahora = timezone.now()
         
         if periodo == 'semana':
             fecha_inicio = ahora - timedelta(days=7)
+        elif periodo == '1m':
+            fecha_inicio = ahora - timedelta(days=30)
+        elif periodo == '2m':
+            fecha_inicio = ahora - timedelta(days=60)
+        elif periodo == '3m':
+            fecha_inicio = ahora - timedelta(days=90)
+        elif periodo == '6m':
+            fecha_inicio = ahora - timedelta(days=180)
         elif periodo == 'año':
             fecha_inicio = ahora - timedelta(days=365)
-        else:  # mes (default)
+        elif periodo == 'todo':
+            return None, None
+        else:  # default 1m
             fecha_inicio = ahora - timedelta(days=30)
         
         return fecha_inicio, ahora
@@ -76,7 +100,7 @@ class DashboardViewSet(viewsets.ViewSet):
         
         Retorna KPIs principales del dashboard.
         """
-        periodo = request.query_params.get('periodo', 'mes')
+        periodo = request.query_params.get('periodo', '1m')
         fecha_inicio, fecha_fin = self._get_periodo_fechas(periodo)
         
         # KPI 1: Subastas activas AHORA (ignorar período)
@@ -102,10 +126,13 @@ class DashboardViewSet(viewsets.ViewSet):
                 valor_total += oferta_ganadora.monto
         
         # KPI 4: Clientes activos (que han pujado en el período)
-        clientes_activos = Oferta.objects.filter(
-            fecha_oferta__gte=fecha_inicio,
-            fecha_oferta__lte=fecha_fin
-        ).values('cliente').distinct().count()
+        clientes_activos_qs = Oferta.objects.all()
+        if fecha_inicio and fecha_fin:
+            clientes_activos_qs = clientes_activos_qs.filter(
+                fecha_oferta__gte=fecha_inicio,
+                fecha_oferta__lte=fecha_fin
+            )
+        clientes_activos = clientes_activos_qs.values('cliente').distinct().count()
         
         return Response({
             'subastas_activas': subastas_activas_count,
@@ -121,36 +148,34 @@ class DashboardViewSet(viewsets.ViewSet):
         
         Retorna datos para gráfico de línea con tendencia de subastas.
         """
-        periodo = request.query_params.get('periodo', 'mes')
+        periodo = request.query_params.get('periodo', '1m')
         fecha_inicio, fecha_fin = self._get_periodo_fechas(periodo)
         
         # Agrupar por fecha según el período
-        if periodo == 'semana':
-            # Agrupar por día
-            subastas_por_fecha = Subasta.objects.filter(
+        queryset = Subasta.objects.all()
+        if fecha_inicio and fecha_fin:
+            queryset = queryset.filter(
                 fecha_hora_inicio__gte=fecha_inicio,
                 fecha_hora_inicio__lte=fecha_fin
-            ).annotate(
+            )
+
+        if periodo == 'semana':
+            # Agrupar por día
+            subastas_por_fecha = queryset.annotate(
                 fecha=TruncDate('fecha_hora_inicio')
             ).values('fecha').annotate(
                 cantidad=Count('id')
             ).order_by('fecha')
         elif periodo == 'año':
             # Agrupar por mes
-            subastas_por_fecha = Subasta.objects.filter(
-                fecha_hora_inicio__gte=fecha_inicio,
-                fecha_hora_inicio__lte=fecha_fin
-            ).annotate(
+            subastas_por_fecha = queryset.annotate(
                 fecha=TruncMonth('fecha_hora_inicio')
             ).values('fecha').annotate(
                 cantidad=Count('id')
             ).order_by('fecha')
-        else:  # mes
+        else:  # 1m o todo
             # Agrupar por día
-            subastas_por_fecha = Subasta.objects.filter(
-                fecha_hora_inicio__gte=fecha_inicio,
-                fecha_hora_inicio__lte=fecha_fin
-            ).annotate(
+            subastas_por_fecha = queryset.annotate(
                 fecha=TruncDate('fecha_hora_inicio')
             ).values('fecha').annotate(
                 cantidad=Count('id')
@@ -174,14 +199,18 @@ class DashboardViewSet(viewsets.ViewSet):
         
         Retorna top 5 frutas más subastadas por volumen.
         """
-        periodo = request.query_params.get('periodo', 'mes')
+        periodo = request.query_params.get('periodo', '1m')
         fecha_inicio, fecha_fin = self._get_periodo_fechas(periodo)
         
         # Agrupar por tipo de fruta
-        volumenes = Subasta.objects.filter(
-            fecha_hora_inicio__gte=fecha_inicio,
-            fecha_hora_inicio__lte=fecha_fin
-        ).values(
+        queryset = Subasta.objects.all()
+        if fecha_inicio and fecha_fin:
+            queryset = queryset.filter(
+                fecha_hora_inicio__gte=fecha_inicio,
+                fecha_hora_inicio__lte=fecha_fin
+            )
+
+        volumenes = queryset.values(
             'packing_detalle__packing_tipo__tipo_fruta__nombre'
         ).annotate(
             kg_total=Sum('packing_detalle__py')
@@ -204,14 +233,25 @@ class DashboardViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'], url_path='estado-packings')
     def estado_packings(self, request):
         """
-        GET /api/subastas/dashboard/estado-packings/
+        GET /api/subastas/dashboard/estado-packings/?periodo=1m
         
         Retorna distribución de estados de PackingSemanal.
         """
-        total_packings = PackingSemanal.objects.exclude(estado='ANULADO').count()
+        periodo = request.query_params.get('periodo', '1m')
+        fecha_inicio, fecha_fin = self._get_periodo_fechas(periodo)
+        
+        packings_qs = PackingSemanal.objects.exclude(estado='ANULADO')
+        if fecha_inicio and fecha_fin:
+            # fecha_inicio_semana es DateField
+            packings_qs = packings_qs.filter(
+                fecha_inicio_semana__gte=fecha_inicio.date(),
+                fecha_inicio_semana__lte=fecha_fin.date()
+            )
+            
+        total_packings = packings_qs.count()
         
         # Contar por estado usando el campo estado (no calculado)
-        estados = PackingSemanal.objects.exclude(estado='ANULADO').values('estado').annotate(
+        estados = packings_qs.values('estado').annotate(
             cantidad=Count('id')
         )
         
@@ -234,7 +274,7 @@ class DashboardViewSet(viewsets.ViewSet):
         
         Retorna datos de ingresos para gráfico de área.
         """
-        periodo = request.query_params.get('periodo', 'mes')
+        periodo = request.query_params.get('periodo', '1m')
         fecha_inicio, fecha_fin = self._get_periodo_fechas(periodo)
         
         # Determinar función de truncado
@@ -244,11 +284,14 @@ class DashboardViewSet(viewsets.ViewSet):
             truncate_func = TruncDate
         
         # Obtener subastas finalizadas con su oferta ganadora en el rango
-        subastas_finalizadas = Subasta.objects.filter(
-            estado='FINALIZADA',
-            fecha_hora_fin__gte=fecha_inicio,
-            fecha_hora_fin__lte=fecha_fin
-        ).annotate(
+        queryset = Subasta.objects.filter(estado='FINALIZADA')
+        if fecha_inicio and fecha_fin:
+            queryset = queryset.filter(
+                fecha_hora_fin__gte=fecha_inicio,
+                fecha_hora_fin__lte=fecha_fin
+            )
+
+        subastas_finalizadas = queryset.annotate(
             periodo_label=truncate_func('fecha_hora_fin')
         )
         
@@ -281,11 +324,13 @@ class DashboardViewSet(viewsets.ViewSet):
         Retorna últimas 5 subastas finalizadas.
         """
         ahora = timezone.now()
+        
+        # Siempre mostramos las últimas 10, sin importar el filtro
         subastas = Subasta.objects.filter(
             fecha_hora_fin__lt=ahora
         ).exclude(estado='CANCELADA').select_related(
             'packing_detalle__packing_tipo__tipo_fruta'
-        ).order_by('-fecha_hora_fin')[:5]
+        ).order_by('-fecha_hora_fin')[:10]
         
         datos = []
         for subasta in subastas:
@@ -310,18 +355,25 @@ class DashboardViewSet(viewsets.ViewSet):
         
         Retorna ranking de top 10 clientes.
         """
-        periodo = request.query_params.get('periodo', 'año')
+        periodo = request.query_params.get('periodo', '1m')
         fecha_inicio, fecha_fin = self._get_periodo_fechas(periodo)
         
         # Obtener ofertas ganadoras en el período
         # Se consideran subastas cuya fecha de fin ya pasó y no están canceladas
         ahora = timezone.now()
-        ofertas_ganadoras = Oferta.objects.filter(
+        queryset = Oferta.objects.filter(
             es_ganadora=True,
-            fecha_oferta__gte=fecha_inicio,
-            fecha_oferta__lte=fecha_fin,
             subasta__fecha_hora_fin__lt=ahora
-        ).exclude(subasta__estado='CANCELADA').select_related('cliente', 'subasta')
+        ).exclude(subasta__estado='CANCELADA')
+
+        if fecha_inicio and fecha_fin:
+            queryset = queryset.filter(
+                fecha_oferta__gte=fecha_inicio,
+                fecha_oferta__lte=fecha_fin
+            )
+        
+        ofertas_ganadoras = queryset.select_related('cliente', 'subasta')
+        
         
         # Agrupar por cliente
         clientes_stats = {}
@@ -396,11 +448,11 @@ class DashboardViewSet(viewsets.ViewSet):
         """
         GET /api/subastas/dashboard/resumen/
         
-        Retorna conteos simplificados por estado para subastas, packings y clientes.
+        Retorna conteos simplificados GLOBALES (ignora filtro de periodo para coherencia visual).
         """
         ahora = timezone.now()
         
-        # 1. Resumen de Subastas (basado en estado_calculado lógico)
+        # 1. Resumen de Subastas (GLOBAL)
         subastas = Subasta.objects.all()
         
         # Nota: Como estado_calculado es una propiedad, no podemos filtrar directamente en BD
@@ -413,8 +465,7 @@ class DashboardViewSet(viewsets.ViewSet):
             'CANCELADA': subastas.filter(estado='CANCELADA').count(),
         }
         
-        # 2. Resumen de Packings
-        # Usamos la propiedad estado_calculado para asegurar consistencia
+        # 2. Resumen de Packings (GLOBAL)
         all_packings = list(PackingSemanal.objects.all())
         packings_data = {
             'TOTAL': len(all_packings),
@@ -424,12 +475,13 @@ class DashboardViewSet(viewsets.ViewSet):
             'ANULADO': len([p for p in all_packings if p.estado_calculado == 'ANULADO']),
         }
         
-        # 3. Resumen de Clientes
-        clientes = Cliente.objects.all()
+        # 3. Resumen de Clientes (GLOBAL)
+        clientes_qs = Cliente.objects.all()
+        
         clientes_data = {
-            'TOTAL': clientes.count(),
-            'ACTIVOS': clientes.filter(estado='habilitado', confirmacion_correo=True).count(),
-            'PENDIENTES': clientes.exclude(estado='habilitado', confirmacion_correo=True).count(),
+            'TOTAL': clientes_qs.count(),
+            'ACTIVOS': clientes_qs.filter(estado='habilitado', confirmacion_correo=True).count(),
+            'PENDIENTES': clientes_qs.exclude(estado='habilitado', confirmacion_correo=True).count(),
         }
         
         return Response({
