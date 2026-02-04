@@ -140,7 +140,7 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         # TÍTULO DEL REPORTE
         # =====================================================================
         
-        ws.merge_cells('A1:N1')
+        ws.merge_cells('A1:O1')
         cell_titulo = ws['A1']
         
         # Crear texto del título con rango de fechas
@@ -174,6 +174,7 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
             'Estado',
             'Fecha Inicio',
             'Fecha Fin',
+            'Duración',
             'Precio Base',
             'Ganador',
             'Monto Ganador',
@@ -264,6 +265,13 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
             fecha_inicio_peru = subasta.fecha_hora_inicio.astimezone(lima_tz)
             fecha_fin_peru = subasta.fecha_hora_fin.astimezone(lima_tz)
             
+            # Calcular duración de la subasta
+            duracion_delta = subasta.fecha_hora_fin - subasta.fecha_hora_inicio
+            duracion_segundos = int(duracion_delta.total_seconds())
+            duracion_horas = duracion_segundos // 3600
+            duracion_minutos = (duracion_segundos % 3600) // 60
+            duracion_str = f"{duracion_horas}h {duracion_minutos}m"
+            
             # Datos de la fila
             row_data = [
                 subasta.id,
@@ -276,6 +284,7 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
                 estado_real, # Usamos el estado calculado en tiempo real
                 fecha_inicio_peru.strftime('%d/%m/%Y %H:%M'),  # Horario de Perú
                 fecha_fin_peru.strftime('%d/%m/%Y %H:%M'),      # Horario de Perú
+                duracion_str,  # Nueva columna de duración
                 float(subasta.precio_base),
                 ganador_nombre,
                 monto_ganador,
@@ -291,7 +300,7 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
                 cell.border = cell_border
                 
                 # Formato especial para números
-                if col_num in [7, 11, 13]:  # Kilos, Precio Base, Monto Ganador
+                if col_num in [7, 12, 14]:  # Kilos, Precio Base, Monto Ganador
                     cell.number_format = '#,##0.00'
             
             row_num += 1
@@ -311,10 +320,11 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
             'H': 15,  # Estado
             'I': 18,  # Fecha Inicio
             'J': 18,  # Fecha Fin
-            'K': 14,  # Precio Base
-            'L': 30,  # Ganador
-            'M': 15,  # Monto Ganador
-            'N': 14,  # Total Ofertas
+            'K': 12,  # Duración
+            'L': 14,  # Precio Base
+            'M': 30,  # Ganador
+            'N': 15,  # Monto Ganador
+            'O': 14,  # Total Ofertas
         }
         
         for col_letter, width in column_widths.items():
@@ -325,7 +335,7 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         # =====================================================================
         
         if row_num > 3:  # Solo si hay datos
-            ws.auto_filter.ref = f"A2:N{row_num-1}"
+            ws.auto_filter.ref = f"A2:O{row_num-1}"
         
         # =====================================================================
         # GENERAR RESPUESTA HTTP CON EL ARCHIVO

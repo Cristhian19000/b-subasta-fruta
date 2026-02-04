@@ -90,50 +90,30 @@ const StatusDonutWidget = ({ title, data, loading = false, colorScheme = 'blue',
         return null;
     };
 
-    // Función para renderizar etiquetas personalizadas con mejor diseño
+    // Función para renderizar etiquetas limpias dentro del segmento
     const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, value, name, fill }) => {
-        const total = chartData.reduce((sum, item) => sum + item.value, 0);
-        const percent = ((value / total) * 100).toFixed(0);
-
-        // Solo mostrar etiqueta si el porcentaje es mayor a 5%
-        if (percent < 5) return null;
-
         const RADIAN = Math.PI / 180;
-        // Posicionar la etiqueta entre el radio interno y externo
+        // Posicionar la etiqueta en el centro del segmento
         const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
         const x = cx + radius * Math.cos(-midAngle * RADIAN);
         const y = cy + radius * Math.sin(-midAngle * RADIAN);
 
         return (
-            <g>
-                {/* Fondo semitransparente para la etiqueta */}
-                <rect
-                    x={x - 18}
-                    y={y - 10}
-                    width={36}
-                    height={20}
-                    fill="white"
-                    opacity={0.9}
-                    rx={4}
-                    stroke={fill}
-                    strokeWidth={1.5}
-                />
-                {/* Texto del valor */}
-                <text
-                    x={x}
-                    y={y}
-                    fill={fill}
-                    textAnchor="middle"
-                    dominantBaseline="central"
-                    style={{
-                        fontSize: '13px',
-                        fontWeight: '700',
-                        textShadow: '0 1px 2px rgba(0,0,0,0.1)'
-                    }}
-                >
-                    {value}
-                </text>
-            </g>
+            <text
+                x={x}
+                y={y}
+                fill="white"
+                textAnchor="middle"
+                dominantBaseline="central"
+                style={{
+                    fontSize: '16px',
+                    fontWeight: '800',
+                    textShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                    pointerEvents: 'none'
+                }}
+            >
+                {value}
+            </text>
         );
     };
 
@@ -153,46 +133,72 @@ const StatusDonutWidget = ({ title, data, loading = false, colorScheme = 'blue',
 
             <div className="flex-1 min-h-[160px] w-full relative">
                 {chartData.length > 0 && isMounted ? (
-                    <>
-                        <ResponsiveContainer width="100%" height={220}>
-                            <PieChart>
-                                <Pie
-                                    data={chartData}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={50}
-                                    outerRadius={75}
-                                    paddingAngle={5}
-                                    dataKey="value"
-                                    stroke="none"
-                                    label={renderCustomLabel}
-                                    labelLine={false}
-                                />
-                                <Tooltip
-                                    content={<CustomTooltip />}
-                                    wrapperStyle={{ zIndex: 50, outline: 'none' }}
-                                />
-                                {showLegend && (
-                                    <Legend
-                                        verticalAlign="bottom"
-                                        height={36}
-                                        iconType="circle"
-                                        formatter={(value) => <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-tight">{value}</span>}
+                    <div className="flex items-center gap-4">
+                        {/* Gráfico de dona */}
+                        <div className="flex-1 relative">
+                            <ResponsiveContainer width="100%" height={200}>
+                                <PieChart>
+                                    <Pie
+                                        data={chartData}
+                                        cx="50%"
+                                        cy="50%"
+                                        innerRadius={45}
+                                        outerRadius={70}
+                                        paddingAngle={5}
+                                        dataKey="value"
+                                        stroke="none"
                                     />
-                                )}
-                            </PieChart>
-                        </ResponsiveContainer>
+                                    <Tooltip
+                                        content={<CustomTooltip />}
+                                        wrapperStyle={{ zIndex: 50, outline: 'none' }}
+                                    />
+                                </PieChart>
+                            </ResponsiveContainer>
 
-                        {/* Indicador central */}
-                        <div className="absolute top-[40%] left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none z-10">
-                            <div className="text-xl font-black text-gray-900 leading-none">
-                                {formatNumber(data.TOTAL || 0)}
-                            </div>
-                            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">
-                                Total
+                            {/* Indicador central */}
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none z-10">
+                                <div className="text-2xl font-black text-gray-900 leading-none">
+                                    {formatNumber(data.TOTAL || 0)}
+                                </div>
+                                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">
+                                    Total
+                                </div>
                             </div>
                         </div>
-                    </>
+
+                        {/* Lista de estadísticas al costado */}
+                        <div className="flex flex-col gap-2 min-w-[140px]">
+                            {chartData.map((item, index) => {
+                                const total = chartData.reduce((sum, i) => sum + i.value, 0);
+                                const percent = ((item.value / total) * 100).toFixed(1);
+
+                                return (
+                                    <div key={index} className="flex items-center gap-2">
+                                        {/* Indicador de color */}
+                                        <div
+                                            className="w-3 h-3 rounded-full flex-shrink-0"
+                                            style={{ backgroundColor: item.fill }}
+                                        />
+
+                                        {/* Información */}
+                                        <div className="flex-1">
+                                            <div className="text-[10px] font-semibold text-gray-600 uppercase tracking-tight leading-tight">
+                                                {item.name}
+                                            </div>
+                                            <div className="flex items-baseline gap-1.5">
+                                                <span className="text-sm font-bold text-gray-900">
+                                                    {item.value}
+                                                </span>
+                                                <span className="text-[11px] font-medium text-gray-500">
+                                                    ({percent}%)
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
                 ) : chartData.length > 0 ? (
                     <div className="h-[220px] w-full" />
                 ) : (
