@@ -130,7 +130,7 @@ const Perfiles = () => {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                        <Shield className="w-7 h-7 text-blue-600" />
+                        <Shield className="w-7 h-7 text-black-600" />
                         Perfiles de Permisos
                     </h1>
                     <p className="text-sm text-gray-600 mt-1">
@@ -177,7 +177,6 @@ const Perfiles = () => {
                             <tr key={perfil.id} className="hover:bg-gray-50">
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     <div className="flex items-center">
-                                        <Shield className="w-5 h-5 text-blue-500 mr-2" />
                                         <div>
                                             <div className="text-sm font-medium text-gray-900">{perfil.nombre}</div>
                                             {perfil.es_superusuario && (
