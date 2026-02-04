@@ -140,7 +140,7 @@ const Perfiles = () => {
 
                 <button
                     onClick={handleCreate}
-                    className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                    className="flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors"
                 >
                     <Plus className="w-5 h-5" />
                     Crear Perfil
@@ -205,12 +205,12 @@ const Perfiles = () => {
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     {perfil.activo ? (
                                         <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
-                                            <CheckCircle2 className="w-3 h-3" />
+
                                             Activo
                                         </span>
                                     ) : (
                                         <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-100 text-red-800 text-xs font-medium rounded-full">
-                                            <XCircle className="w-3 h-3" />
+
                                             Inactivo
                                         </span>
                                     )}
@@ -356,7 +356,7 @@ const Perfiles = () => {
                                 </button>
                                 <button
                                     type="submit"
-                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                                    className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
                                 >
                                     {modoEdicion ? 'Guardar Cambios' : 'Crear Perfil'}
                                 </button>
