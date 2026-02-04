@@ -90,6 +90,53 @@ const StatusDonutWidget = ({ title, data, loading = false, colorScheme = 'blue',
         return null;
     };
 
+    // Función para renderizar etiquetas personalizadas con mejor diseño
+    const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, value, name, fill }) => {
+        const total = chartData.reduce((sum, item) => sum + item.value, 0);
+        const percent = ((value / total) * 100).toFixed(0);
+
+        // Solo mostrar etiqueta si el porcentaje es mayor a 5%
+        if (percent < 5) return null;
+
+        const RADIAN = Math.PI / 180;
+        // Posicionar la etiqueta entre el radio interno y externo
+        const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+        const x = cx + radius * Math.cos(-midAngle * RADIAN);
+        const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+        return (
+            <g>
+                {/* Fondo semitransparente para la etiqueta */}
+                <rect
+                    x={x - 18}
+                    y={y - 10}
+                    width={36}
+                    height={20}
+                    fill="white"
+                    opacity={0.9}
+                    rx={4}
+                    stroke={fill}
+                    strokeWidth={1.5}
+                />
+                {/* Texto del valor */}
+                <text
+                    x={x}
+                    y={y}
+                    fill={fill}
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    style={{
+                        fontSize: '13px',
+                        fontWeight: '700',
+                        textShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                    }}
+                >
+                    {value}
+                </text>
+            </g>
+        );
+    };
+
     return (
         <div className="bg-white p-6 rounded-lg border border-gray-200 hover:shadow-md transition-shadow h-full flex flex-col overflow-hidden">
             <div className="flex justify-between items-start mb-2">
@@ -118,6 +165,8 @@ const StatusDonutWidget = ({ title, data, loading = false, colorScheme = 'blue',
                                     paddingAngle={5}
                                     dataKey="value"
                                     stroke="none"
+                                    label={renderCustomLabel}
+                                    labelLine={false}
                                 />
                                 <Tooltip
                                     content={<CustomTooltip />}
