@@ -14,6 +14,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.db import transaction
 from django.db.models import F, Count
 from django.utils import timezone
+from usuarios.permissions import RBACPermission, requiere_permiso
 
 from .models import Subasta, Oferta
 from .serializers import (
@@ -39,7 +40,21 @@ class SubastaViewSet(viewsets.ModelViewSet):
     RF-03: Visualización de ganadores
     """
     
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RBACPermission]
+    modulo_permiso = 'subastas'
+    
+    permisos_mapping = {
+        'list': 'view_list',
+        'retrieve': 'view_detail',
+        'create': 'create',
+        'update': 'update',
+        'partial_update': 'update',
+        'destroy': 'delete',
+        'cancelar': 'cancel',
+        'historial_ofertas': 'view_bids',
+        'resumen': 'view_list',
+        'actualizar_estados': 'update',
+    }
     
     # Backends de filtrado: búsqueda por texto
     from rest_framework import filters
@@ -224,7 +239,18 @@ class OfertaViewSet(viewsets.ModelViewSet):
     RN-03: Manejo de concurrencia
     """
     
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RBACPermission]
+    modulo_permiso = 'subastas'
+    
+    permisos_mapping = {
+        'list': 'view_bids',
+        'retrieve': 'view_bids',
+        'create': 'view_bids', # En el panel admin, crear oferta es raro pero lo mapeamos a view_bids
+        'update': 'view_bids',
+        'partial_update': 'view_bids',
+        'destroy': 'view_bids',
+    }
+    
     serializer_class = OfertaSerializer
     
     def get_queryset(self):

@@ -3,9 +3,16 @@
  */
 
 import { useAuth } from '../../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const Header = () => {
     const { user, logout } = useAuth();
+    const navigate = useNavigate();
+
+    const handleLogout = async () => {
+        await logout();
+        navigate('/login', { replace: true });
+    };
 
     return (
         <header className="fixed top-0 left-64 right-0 z-30 h-16 bg-white border-b border-gray-200">
@@ -27,7 +34,7 @@ const Header = () => {
                             {user?.es_administrador ? 'Administrador' : 'Trabajador'}
                         </p>
                     </div>
-                    
+
                     {/* Avatar */}
                     <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gray-200 text-gray-600 font-medium text-sm">
                         {(user?.first_name?.[0] || user?.username?.[0] || 'U').toUpperCase()}
@@ -35,7 +42,7 @@ const Header = () => {
 
                     {/* Botón cerrar sesión */}
                     <button
-                        onClick={logout}
+                        onClick={handleLogout}
                         className="p-2 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
                         title="Cerrar sesión"
                     >

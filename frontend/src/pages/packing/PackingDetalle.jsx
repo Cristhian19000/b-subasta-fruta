@@ -10,6 +10,7 @@
 import { useState, useEffect } from "react";
 import { Button, Badge, Modal } from "../../components/common";
 import { ImageGallery } from "../../components/packing";
+import { usePermissions } from "../../hooks/usePermissions";
 import {
   getSubastasPorPacking,
   createSubasta,
@@ -41,6 +42,7 @@ const SUBASTA_LABELS = {
 };
 
 const PackingDetalle = ({ packing, onClose, onEdit }) => {
+  const { hasPermission, isAdmin } = usePermissions();
   const [subastas, setSubastas] = useState({});
   const [loadingSubastas, setLoadingSubastas] = useState(true); // Nuevo estado de carga
   const [showSubastaModal, setShowSubastaModal] = useState(false);
@@ -496,20 +498,22 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
                                     )}
                                   </div>
                                 ) : (
-                                  /* CAMBIO AQUÍ: Eliminamos w-full si lo tenías y usamos un ancho fijo o max-content */
-                                  <Button
-                                    size="sm"
-                                    variant="success"
-                                    className="px-4 w-auto" // w-auto evita que se estire al ancho de la celda
-                                    onClick={() =>
-                                      handleAbrirSubastaModal(
-                                        detalle,
-                                        tipo.tipo_fruta_nombre,
-                                      )
-                                    }
-                                  >
-                                    + Subasta
-                                  </Button>
+                                  /* Botón crear subasta - solo si tiene permiso */
+                                  (isAdmin() || hasPermission('packing', 'create_auction')) && (
+                                    <Button
+                                      size="sm"
+                                      variant="success"
+                                      className="px-4 w-auto" // w-auto evita que se estire al ancho de la celda
+                                      onClick={() =>
+                                        handleAbrirSubastaModal(
+                                          detalle,
+                                          tipo.tipo_fruta_nombre,
+                                        )
+                                      }
+                                    >
+                                      + Subasta
+                                    </Button>
+                                  )
                                 )}
                               </div>
                             </td>
@@ -667,11 +671,10 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
                           duracion_horas: value,
                         }))
                       }
-                      className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                        subastaForm.duracion_horas === value
+                      className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${subastaForm.duracion_horas === value
                           ? "bg-blue-600 text-white border-blue-600"
                           : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-                      }`}
+                        }`}
                     >
                       {label}
                     </button>
@@ -685,10 +688,10 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
                         const inicio = new Date(subastaForm.fecha_hora_inicio);
                         const fin = new Date(
                           inicio.getTime() +
-                            parseInt(subastaForm.duracion_horas) *
-                              60 *
-                              60 *
-                              1000,
+                          parseInt(subastaForm.duracion_horas) *
+                          60 *
+                          60 *
+                          1000,
                         );
                         return fin.toLocaleString("es-PE", {
                           weekday: "short",
@@ -801,7 +804,7 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
                   <div className="font-semibold text-green-600">
                     {formatKg(
                       subastaSeleccionada.kilos ||
-                        subastaSeleccionada.detalle?.py,
+                      subastaSeleccionada.detalle?.py,
                     )}{" "}
                     kg
                   </div>

@@ -4,7 +4,7 @@
 
 import { Button, Input } from '../../components/common';
 
-const UsuarioForm = ({ formData, onChange, onSubmit, onCancel, mode, errors = {} }) => {
+const UsuarioForm = ({ formData, onChange, onSubmit, onCancel, mode, errors = {}, perfiles = [] }) => {
     const handleInputChange = (e) => {
         const { name, value, type, checked } = e.target;
         onChange({
@@ -76,6 +76,33 @@ const UsuarioForm = ({ formData, onChange, onSubmit, onCancel, mode, errors = {}
                     onChange={handleInputChange}
                 />
             </div>
+
+            {/* Perfil de Permisos */}
+            {!formData.es_administrador && (
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Perfil de Permisos
+                    </label>
+                    {console.log('Perfiles en formulario:', perfiles)}
+                    <select
+                        name="perfil_permiso_id"
+                        value={formData.perfil_permiso_id}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-gray-900 focus:border-gray-900"
+                    >
+                        <option value="">Sin perfil asignado</option>
+                        {perfiles.filter(p => p.activo).map(perfil => (
+                            <option key={perfil.id} value={perfil.id}>
+                                {perfil.nombre}
+                                {perfil.es_superusuario && ' (Acceso Total)'}
+                            </option>
+                        ))}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                        Los administradores tienen acceso total sin necesidad de perfil
+                    </p>
+                </div>
+            )}
 
             <div className="pt-2">
                 <label className="flex items-center text-sm text-gray-700 cursor-pointer">

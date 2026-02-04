@@ -13,6 +13,7 @@ from django.db.models.functions import TruncDate, TruncWeek, TruncMonth
 from django.utils import timezone
 from datetime import timedelta, datetime
 from decimal import Decimal
+from usuarios.permissions import RBACPermission
 
 from .models import Subasta, Oferta
 from modulo_packing.models import PackingSemanal, TipoFruta
@@ -26,8 +27,21 @@ class DashboardViewSet(viewsets.ViewSet):
     Proporciona estadísticas, gráficos y tablas para el dashboard principal.
     """
     
-    # Permitir acceso sin autenticación (ya autenticado en el frontend)
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, RBACPermission]
+    modulo_permiso = 'dashboard'
+    
+    permisos_mapping = {
+        'list': 'view_dashboard',
+        'estadisticas': 'view_kpis',
+        'tendencia_subastas': 'view_kpis',
+        'volumen_por_fruta': 'view_kpis',
+        'estado_packings': 'view_kpis',
+        'ingresos_periodo': 'view_kpis',
+        'subastas_recientes': 'view_dashboard',
+        'top_clientes': 'view_kpis',
+        'proximas_subastas': 'view_dashboard',
+        'resumen': 'view_dashboard', # Cualquier usuario con acceso al dashboard puede ver el resumen
+    }
     
     def list(self, request):
         """

@@ -9,9 +9,10 @@ además de acciones personalizadas para confirmar correo y cambiar estados.
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.utils import timezone
+from usuarios.permissions import RBACPermission, requiere_permiso
 from .models import Cliente
 from .serializers import ClienteSerializer, ClienteListSerializer, ClienteLoginSerializer
 
@@ -45,6 +46,25 @@ class ClienteViewSet(viewsets.ModelViewSet):
     
     # Serializer por defecto para operaciones de detalle
     serializer_class = ClienteSerializer
+    
+    permission_classes = [IsAuthenticated, RBACPermission]
+    modulo_permiso = 'clientes'
+    
+    # Mapeo personalizado para acciones fuera del estándar CRUD
+    permisos_mapping = {
+        'list': 'view_list',
+        'retrieve': 'view_detail',
+        'create': 'create',
+        'update': 'update',
+        'partial_update': 'update',
+        'destroy': 'delete',
+        'confirmar_correo': 'update',
+        'cambiar_estado': 'update',
+        'actualizar_estatus_ficha': 'update',
+        'estadisticas': 'view_list',
+        'resetear_password': 'update',
+        'subasta_stats': 'view_detail',
+    }
     
     # Backends de filtrado: búsqueda y ordenamiento
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
@@ -219,7 +239,7 @@ class ClienteViewSet(viewsets.ModelViewSet):
     # ENDPOINT PARA APP MÓVIL (KOTLIN)
     # =========================================================================
 
-    @action(detail=False, methods=['post'], url_path='login-movil')
+    @action(detail=False, methods=['post'], url_path='login-movil', permission_classes=[AllowAny])
     def login_movil(self, request):
         """
         Endpoint para el inicio de sesión de clientes desde la aplicación móvil.

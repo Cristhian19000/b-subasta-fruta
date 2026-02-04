@@ -7,16 +7,61 @@ registro y gestión de usuarios del sistema.
 
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import PerfilUsuario
+from .models import PerfilUsuario, PerfilPermiso
+
+
+class PerfilPermisoSerializer(serializers.ModelSerializer):
+    """Serializer para perfiles de permisos."""
+    
+    total_usuarios = serializers.SerializerMethodField()
+    nombre_creador = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = PerfilPermiso
+        fields = [
+            'id',
+            'nombre',
+            'descripcion',
+            'activo',
+            'es_superusuario',
+            'permisos',
+            'total_usuarios',
+            'nombre_creador',
+            'fecha_creacion',
+            'fecha_actualizacion'
+        ]
+        read_only_fields = ['fecha_creacion', 'fecha_actualizacion', 'total_usuarios', 'nombre_creador']
+    
+    def get_total_usuarios(self, obj):
+        """Contar usuarios activos con este perfil."""
+        return obj.usuarios.filter(user__is_active=True).count()
+    
+    def get_nombre_creador(self, obj):
+        """Obtener nombre del usuario que creó este perfil."""
+        if obj.creado_por:
+            return f"{obj.creado_por.first_name} {obj.creado_por.last_name}".strip() or obj.creado_por.username
+        return None
 
 
 class PerfilUsuarioSerializer(serializers.ModelSerializer):
     """Serializer para el perfil de usuario."""
     
+    perfil_permiso = serializers.SerializerMethodField()
+    
     class Meta:
         model = PerfilUsuario
-        fields = ['es_administrador', 'telefono', 'fecha_creacion']
+        fields = ['es_administrador', 'telefono', 'fecha_creacion', 'perfil_permiso']
         read_only_fields = ['fecha_creacion']
+    
+    def get_perfil_permiso(self, obj):
+        """Retornar información básica del perfil de permisos asignado."""
+        if obj.perfil_permiso:
+            return {
+                'id': obj.perfil_permiso.id,
+                'nombre': obj.perfil_permiso.nombre,
+                'es_superusuario': obj.perfil_permiso.es_superusuario
+            }
+        return None
 
 
 class UsuarioSerializer(serializers.ModelSerializer):
@@ -29,6 +74,7 @@ class UsuarioSerializer(serializers.ModelSerializer):
     perfil = PerfilUsuarioSerializer(read_only=True)
     es_administrador = serializers.BooleanField(write_only=True, required=False, default=False)
     telefono = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    perfil_permiso_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
     password = serializers.CharField(write_only=True, required=True)
     
     class Meta:
@@ -44,6 +90,7 @@ class UsuarioSerializer(serializers.ModelSerializer):
             'perfil',
             'es_administrador',
             'telefono',
+            'perfil_permiso_id',
         ]
         read_only_fields = ['id']
         extra_kwargs = {
@@ -74,6 +121,7 @@ class UsuarioSerializer(serializers.ModelSerializer):
         # Extraer datos del perfil
         es_administrador = validated_data.pop('es_administrador', False)
         telefono = validated_data.pop('telefono', '')
+        perfil_permiso_id = validated_data.pop('perfil_permiso_id', None)
         password = validated_data.pop('password')
         
         # Crear usuario
@@ -81,11 +129,20 @@ class UsuarioSerializer(serializers.ModelSerializer):
         user.set_password(password)
         user.save()
         
+        # Obtener el PerfilPermiso si se proporcionó
+        perfil_permiso = None
+        if perfil_permiso_id:
+            try:
+                perfil_permiso = PerfilPermiso.objects.get(id=perfil_permiso_id)
+            except PerfilPermiso.DoesNotExist:
+                pass
+        
         # Crear perfil asociado
         PerfilUsuario.objects.create(
             user=user,
             es_administrador=es_administrador,
-            telefono=telefono
+            telefono=telefono,
+            perfil_permiso=perfil_permiso
         )
         
         return user
@@ -95,6 +152,7 @@ class UsuarioSerializer(serializers.ModelSerializer):
         # Extraer datos del perfil
         es_administrador = validated_data.pop('es_administrador', None)
         telefono = validated_data.pop('telefono', None)
+        perfil_permiso_id = validated_data.pop('perfil_permiso_id', None)
         password = validated_data.pop('password', None)
         
         # Actualizar usuario
@@ -112,6 +170,18 @@ class UsuarioSerializer(serializers.ModelSerializer):
                 instance.perfil.es_administrador = es_administrador
             if telefono is not None:
                 instance.perfil.telefono = telefono
+            
+            # Actualizar perfil_permiso
+            if perfil_permiso_id is not None:
+                if perfil_permiso_id == '' or perfil_permiso_id == 0:
+                    instance.perfil.perfil_permiso = None
+                else:
+                    try:
+                        perfil_permiso = PerfilPermiso.objects.get(id=perfil_permiso_id)
+                        instance.perfil.perfil_permiso = perfil_permiso
+                    except PerfilPermiso.DoesNotExist:
+                        pass
+            
             instance.perfil.save()
         
         return instance
@@ -157,6 +227,7 @@ class UsuarioInfoSerializer(serializers.ModelSerializer):
     
     es_administrador = serializers.SerializerMethodField()
     telefono = serializers.SerializerMethodField()
+    perfil_permiso = serializers.SerializerMethodField()
     
     class Meta:
         model = User
@@ -169,6 +240,7 @@ class UsuarioInfoSerializer(serializers.ModelSerializer):
             'is_superuser',
             'es_administrador',
             'telefono',
+            'perfil_permiso',
         ]
     
     def get_es_administrador(self, obj):
@@ -183,4 +255,15 @@ class UsuarioInfoSerializer(serializers.ModelSerializer):
         """Obtener teléfono del perfil."""
         if hasattr(obj, 'perfil'):
             return obj.perfil.telefono
+        return None
+    
+    def get_perfil_permiso(self, obj):
+        """Obtener información del perfil de permisos asignado."""
+        if hasattr(obj, 'perfil') and obj.perfil.perfil_permiso:
+            return {
+                'id': obj.perfil.perfil_permiso.id,
+                'nombre': obj.perfil.perfil_permiso.nombre,
+                'permisos': obj.perfil.perfil_permiso.permisos,
+                'es_superusuario': obj.perfil.perfil_permiso.es_superusuario
+            }
         return None

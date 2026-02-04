@@ -9,14 +9,16 @@ from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
     UsuarioViewSet,
+    PerfilPermisoViewSet,
     login_view,
     logout_view,
     me_view
 )
 
-# Router para el ViewSet de usuarios
+# Router para ViewSets
 router = DefaultRouter()
 router.register(r'usuarios', UsuarioViewSet, basename='usuario')
+router.register(r'perfiles-permiso', PerfilPermisoViewSet, basename='perfil-permiso')
 
 urlpatterns = [
     # Rutas de autenticación

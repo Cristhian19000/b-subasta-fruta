@@ -6,7 +6,7 @@
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
-import ProtectedRoute from './components/ProtectedRoute';
+import ProtectedRoute from './components/common/ProtectedRoute';
 import { Layout } from './components/layout';
 import { Login } from './pages/auth';
 import { Home } from './pages/home';
@@ -15,6 +15,7 @@ import { Usuarios } from './pages/usuarios';
 import { Packing, Empresas, TiposFruta } from './pages/packing';
 import { Subastas } from './pages/subastas';
 import { Reportes } from './pages/reportes';
+import Perfiles from './pages/perfiles/Perfiles';
 import './index.css';
 
 function App() {
@@ -31,41 +32,64 @@ function App() {
                             <Layout />
                         </ProtectedRoute>
                     }>
-                        {/* Página de inicio */}
-                        <Route index element={<Home />} />
+                        {/* Página de inicio - requiere permiso dashboard */}
+                        <Route index element={
+                            <ProtectedRoute requirePermission={['dashboard', 'view_dashboard']}>
+                                <Home />
+                            </ProtectedRoute>
+                        } />
 
-                        {/* Módulo de clientes (todos) */}
-                        <Route path="clientes" element={<Clientes />} />
+                        {/* Módulo de clientes - requiere permiso view_list */}
+                        <Route path="clientes" element={
+                            <ProtectedRoute requirePermission={['clientes', 'view_list']}>
+                                <Clientes />
+                            </ProtectedRoute>
+                        } />
 
-                        {/* Módulo de packing (todos) */}
-                        <Route path="packing" element={<Packing />} />
+                        {/* Módulo de packing - requiere permiso view_list */}
+                        <Route path="packing" element={
+                            <ProtectedRoute requirePermission={['packing', 'view_list']}>
+                                <Packing />
+                            </ProtectedRoute>
+                        } />
 
-                        {/* Módulo de subastas (todos) */}
-                        <Route path="subastas" element={<Subastas />} />
+                        {/* Módulo de subastas - requiere permiso view_list */}
+                        <Route path="subastas" element={
+                            <ProtectedRoute requirePermission={['subastas', 'view_list']}>
+                                <Subastas />
+                            </ProtectedRoute>
+                        } />
 
-                        {/* Catálogos de packing (solo admin) */}
+                        {/* Catálogos de packing */}
                         <Route path="empresas" element={
-                            <ProtectedRoute requireAdmin>
+                            <ProtectedRoute requirePermission={['catalogos', 'view_empresas']}>
                                 <Empresas />
                             </ProtectedRoute>
                         } />
                         <Route path="tipos-fruta" element={
-                            <ProtectedRoute requireAdmin>
+                            <ProtectedRoute requirePermission={['catalogos', 'view_tipos_fruta']}>
                                 <TiposFruta />
                             </ProtectedRoute>
                         } />
 
-                        {/* Módulo de reportes (solo admin) */}
+                        {/* Módulo de reportes - requiere al menos un permiso de reporte */}
                         <Route path="reportes" element={
-                            <ProtectedRoute requireAdmin>
+                            <ProtectedRoute requirePermission={['reportes', 'generate_auctions']}>
                                 <Reportes />
                             </ProtectedRoute>
                         } />
 
-                        {/* Módulo de usuarios (solo admin) */}
+                        {/* Módulo de usuarios */}
                         <Route path="usuarios" element={
-                            <ProtectedRoute requireAdmin>
+                            <ProtectedRoute requirePermission={['usuarios', 'view_list']}>
                                 <Usuarios />
+                            </ProtectedRoute>
+                        } />
+
+                        {/* Módulo de perfiles de permisos */}
+                        <Route path="perfiles" element={
+                            <ProtectedRoute requirePermission={['usuarios', 'view_perfiles']}>
+                                <Perfiles />
                             </ProtectedRoute>
                         } />
                     </Route>

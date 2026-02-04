@@ -15,10 +15,12 @@ const initialFormData = {
     password: '',
     es_administrador: false,
     telefono: '',
+    perfil_permiso_id: '', // Nuevo campo
 };
 
 const Usuarios = () => {
     const [usuarios, setUsuarios] = useState([]);
+    const [perfiles, setPerfiles] = useState([]); // Perfiles de permisos disponibles
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
@@ -32,6 +34,7 @@ const Usuarios = () => {
 
     useEffect(() => {
         fetchUsuarios();
+        fetchPerfiles(); // Cargar perfiles
     }, []);
 
     const fetchUsuarios = async () => {
@@ -43,6 +46,18 @@ const Usuarios = () => {
             setError('Error al cargar los usuarios');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchPerfiles = async () => {
+        try {
+            const response = await api.get('/perfiles-permiso/');
+            // La API devuelve {count, results}, extraer el array
+            const perfilesData = response.data.results || response.data;
+            setPerfiles(Array.isArray(perfilesData) ? perfilesData : []);
+        } catch (err) {
+            console.error('Error cargando perfiles:', err);
+            // No mostrar error si no puede cargar perfiles
         }
     };
 
@@ -64,6 +79,7 @@ const Usuarios = () => {
                 password: '',
                 es_administrador: user.perfil?.es_administrador || false,
                 telefono: user.perfil?.telefono || '',
+                perfil_permiso_id: user.perfil?.perfil_permiso?.id || '', // Nuevo
             });
             setSelectedUsuario(user);
             setModalMode('edit');
@@ -274,6 +290,7 @@ const Usuarios = () => {
                     onCancel={handleCloseModal}
                     mode={modalMode}
                     errors={formErrors}
+                    perfiles={perfiles}
                 />
             </Modal>
         </div>

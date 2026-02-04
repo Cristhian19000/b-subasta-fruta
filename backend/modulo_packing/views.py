@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.db.models import Count
+from usuarios.permissions import RBACPermission, requiere_permiso
 
 from .models import Empresa, TipoFruta, PackingSemanal, PackingTipo, PackingDetalle, PackingImagen
 from .serializers import (
@@ -26,7 +27,17 @@ class EmpresaViewSet(viewsets.ModelViewSet):
     
     queryset = Empresa.objects.all()
     serializer_class = EmpresaSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RBACPermission]
+    modulo_permiso = 'catalogos'
+    
+    permisos_mapping = {
+        'list': 'view_empresas',
+        'retrieve': 'view_empresas',
+        'create': 'manage_empresas',
+        'update': 'manage_empresas',
+        'partial_update': 'manage_empresas',
+        'destroy': 'manage_empresas',
+    }
     
     def get_queryset(self):
         """Filtrar empresas activas si se solicita."""
@@ -45,7 +56,17 @@ class TipoFrutaViewSet(viewsets.ModelViewSet):
     
     queryset = TipoFruta.objects.all()
     serializer_class = TipoFrutaSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RBACPermission]
+    modulo_permiso = 'catalogos'
+    
+    permisos_mapping = {
+        'list': 'view_tipos_fruta',
+        'retrieve': 'view_tipos_fruta',
+        'create': 'manage_tipos_fruta',
+        'update': 'manage_tipos_fruta',
+        'partial_update': 'manage_tipos_fruta',
+        'destroy': 'manage_tipos_fruta',
+    }
     
     def get_queryset(self):
         """Filtrar tipos activos si se solicita."""
@@ -69,7 +90,20 @@ class PackingSemanalViewSet(viewsets.ModelViewSet):
     - Crear/Actualizar packing completo en una sola operación
     """
     
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RBACPermission]
+    modulo_permiso = 'packing'
+    
+    # Mapeo personalizado para acciones fuera del estándar CRUD
+    permisos_mapping = {
+        'list': 'view_list',
+        'retrieve': 'view_detail',
+        'create': 'create',
+        'update': 'update',
+        'partial_update': 'update',
+        'destroy': 'delete',
+        'cambiar_estado': 'update',
+        'resumen': 'view_list',
+    }
     
     def get_queryset(self):
         """Obtener queryset con anotaciones y filtros."""
@@ -195,7 +229,13 @@ class PackingTipoViewSet(viewsets.ReadOnlyModelViewSet):
     
     queryset = PackingTipo.objects.select_related('packing_semanal', 'tipo_fruta').all()
     serializer_class = PackingTipoSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RBACPermission]
+    modulo_permiso = 'packing'
+    
+    permisos_mapping = {
+        'list': 'view_detail',
+        'retrieve': 'view_detail',
+    }
     
     def get_queryset(self):
         """Filtrar por packing si se especifica."""
@@ -225,7 +265,16 @@ class PackingImagenViewSet(viewsets.ModelViewSet):
     
     queryset = PackingImagen.objects.select_related('packing_semanal', 'packing_tipo__tipo_fruta').all()
     serializer_class = PackingImagenSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RBACPermission]
+    modulo_permiso = 'packing'
+    
+    permisos_mapping = {
+        'list': 'view_detail',
+        'retrieve': 'view_detail',
+        'create': 'update',
+        'destroy': 'update',
+        'subir_multiple': 'update',
+    }
     parser_classes = [MultiPartParser, FormParser, JSONParser]
     
     def get_queryset(self):

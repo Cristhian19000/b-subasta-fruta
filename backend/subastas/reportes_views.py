@@ -12,6 +12,7 @@ from rest_framework.permissions import IsAuthenticated
 from django.http import HttpResponse
 from django.db.models import Count, Max, Min
 from django.utils import timezone
+from usuarios.permissions import RBACPermission
 from datetime import datetime
 import pytz
 from openpyxl import Workbook
@@ -31,7 +32,14 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
     - GET /api/admin/reportes/subastas/excel/ - Generar reporte Excel
     """
     
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RBACPermission]
+    modulo_permiso = 'reportes'
+    
+    permisos_mapping = {
+        'excel': 'generate_auctions',
+        'clientes_excel': 'generate_clients',
+        'packing_excel': 'generate_packings',
+    }
     
     def _formato_semana(self, fecha_inicio, fecha_fin):
         """
