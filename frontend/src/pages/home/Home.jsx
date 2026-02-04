@@ -16,6 +16,7 @@ import axios from '../../api/axios';
 import RecentAuctionsTable from '../../components/dashboard/RecentAuctionsTable';
 import TopClientsTable from '../../components/dashboard/TopClientsTable';
 import StatusDonutWidget from '../../components/dashboard/StatusDonutWidget';
+import ReportsQuickWidget from '../../components/dashboard/ReportsQuickWidget';
 
 const Home = () => {
     const [loading, setLoading] = useState(true);
@@ -127,6 +128,11 @@ const Home = () => {
                     periodo={periodo}
                     onPeriodChange={setPeriodo}
                 />
+            </div>
+
+            {/* Widget de Reportes Rápidos - Layout de dos columnas */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                <ReportsQuickWidget />
             </div>
         </div>
     );
