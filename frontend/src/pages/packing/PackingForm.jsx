@@ -84,6 +84,7 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
                             dia: diaInfo.value,
                             fecha: fechaDia,
                             py: detalleExistente ? detalleExistente.py : 0,  // PY existente o 0
+                            subasta_estado: detalleExistente ? detalleExistente.subasta_estado : null,
                         };
                     });
 
@@ -175,6 +176,7 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
             dia: dia.value,
             fecha: calculateDate(cabecera.fecha_inicio_semana, index),
             py: 0,
+            subasta_estado: null,
         }));
 
         setTipos(prev => [...prev, {
@@ -721,29 +723,73 @@ const PackingForm = ({ packing, empresas = [], tiposFruta = [], onSave, onCancel
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-200">
-                                    {tipo.detalles.map((detalle, index) => (
-                                        <tr key={index} className="hover:bg-gray-50">
-                                            <td className="px-4 py-2 text-sm text-gray-700">
-                                                {DIAS_SEMANA[index]?.label || detalle.dia}
-                                            </td>
-                                            <td className="px-4 py-2 text-sm text-gray-500">
-                                                {detalle.fecha}
-                                            </td>
-                                            <td className="px-4 py-2">
-                                                <input
-                                                    type="number"
-                                                    value={getKgDisplayValue(detalle.py)}
-                                                    onChange={(e) => handleDetalleChange(tipo.tipo_fruta, index, 'py', e.target.value)}
-                                                    onBlur={(e) => handleKgBlur(tipo.tipo_fruta, index, e.target.value)}
-                                                    onFocus={(e) => e.target.select()}
-                                                    min="0"
-                                                    step="0.01"
-                                                    placeholder="0"
-                                                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-right focus:outline-none focus:ring-1 focus:ring-gray-900"
-                                                />
-                                            </td>
-                                        </tr>
-                                    ))}
+                                    {tipo.detalles.map((detalle, index) => {
+                                        // Determinar si el input debe estar deshabilitado
+                                        const subastaBloqueada = detalle.subasta_estado &&
+                                            ['ACTIVA', 'FINALIZADA'].includes(detalle.subasta_estado);
+
+                                        // Mapeo de colores para los badges
+                                        const getBadgeVariant = (estado) => {
+                                            switch (estado) {
+                                                case 'PROGRAMADA': return 'info';
+                                                case 'ACTIVA': return 'success';
+                                                case 'FINALIZADA': return 'purple';
+                                                case 'CANCELADA': return 'error';
+                                                default: return 'default';
+                                            }
+                                        };
+
+                                        return (
+                                            <tr key={index} className="hover:bg-gray-50">
+                                                <td className="px-4 py-2 text-sm text-gray-700">
+                                                    <div className="flex flex-col">
+                                                        <span>{DIAS_SEMANA[index]?.label || detalle.dia}</span>
+                                                        {detalle.subasta_estado ? (() => {
+                                                            const config = {
+                                                                'PROGRAMADA': { color: 'bg-blue-400', label: 'Programada' },
+                                                                'ACTIVA': { color: 'bg-green-500', label: 'Activa' },
+                                                                'FINALIZADA': { color: 'bg-purple-400', label: 'Finalizada' },
+                                                                'CANCELADA': { color: 'bg-red-400', label: 'Cancelada' },
+                                                            };
+                                                            const { color, label } = config[detalle.subasta_estado] || { color: 'bg-gray-400', label: detalle.subasta_estado };
+                                                            return (
+                                                                <div className="flex items-center gap-1.5 mt-0.5" title={`Subasta ${label}`}>
+                                                                    <span className={`w-1.5 h-1.5 rounded-full ${color}`}></span>
+                                                                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">{label}</span>
+                                                                </div>
+                                                            );
+                                                        })() : (parseFloat(detalle.py) > 0) && (
+                                                            <div className="flex items-center gap-1.5 mt-0.5" title="Pendiente de crear subasta">
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                                                                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Pendiente</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-2 text-sm text-gray-500">
+                                                    {detalle.fecha}
+                                                </td>
+                                                <td className="px-4 py-2">
+                                                    <input
+                                                        type="number"
+                                                        value={getKgDisplayValue(detalle.py)}
+                                                        onChange={(e) => handleDetalleChange(tipo.tipo_fruta, index, 'py', e.target.value)}
+                                                        onBlur={(e) => handleKgBlur(tipo.tipo_fruta, index, e.target.value)}
+                                                        onFocus={(e) => e.target.select()}
+                                                        min="0"
+                                                        step="0.01"
+                                                        placeholder="0"
+                                                        disabled={subastaBloqueada}
+                                                        title={subastaBloqueada ? "No se puede editar: subasta en curso o finalizada" : ""}
+                                                        className={`w-full px-2 py-1.5 border rounded text-sm text-right focus:outline-none focus:ring-1 focus:ring-gray-900 ${subastaBloqueada
+                                                            ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
+                                                            : 'border-gray-300'
+                                                            }`}
+                                                    />
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
 

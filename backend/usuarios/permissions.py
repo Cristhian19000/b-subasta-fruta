@@ -47,10 +47,17 @@ def tiene_permiso(usuario, modulo, permiso):
     
     if isinstance(permisos_modulo, dict):
         # Formato: {"view_list": true, "create": false}
-        return permisos_modulo.get(permiso, False) is True
+        if permisos_modulo.get(permiso, False) is True:
+            return True
     elif isinstance(permisos_modulo, list):
         # Formato: ["view_list", "create"]
-        return permiso in permisos_modulo
+        if permiso in permisos_modulo:
+            return True
+    
+    # 7. Lógica implícita: Si pides 'view_list' y tienes cualquier permiso en el módulo, se permite.
+    # Esto es consistente con la lógica del frontend y necesario para navegar.
+    if permiso == 'view_list' and len(permisos_modulo) > 0:
+        return True
     
     return False
 
@@ -137,11 +144,15 @@ class RBACPermission(BasePermission):
             return True
             
         # 4. Obtener el módulo desde el view
-        modulo = getattr(view, 'modulo_permiso', None)
-        if not modulo:
+        modulos = getattr(view, 'modulo_permiso', None)
+        if not modulos:
             # Si el ViewSet no define módulo, denegamos por seguridad (excepto para superusers)
             print(f"[RBAC] DENEGADO: ViewSet {view.__class__.__name__} no define modulo_permiso")
             return False
+            
+        # Convertir a lista si es un string para manejarlo uniformemente
+        if isinstance(modulos, str):
+            modulos = [modulos]
             
         # 5. Obtener la acción
         action = getattr(view, 'action', None)
@@ -157,9 +168,16 @@ class RBACPermission(BasePermission):
         if not permiso:
             return True
             
-        # 8. Verificación final
-        resultado = tiene_permiso(request.user, modulo, permiso)
-        if not resultado:
-            print(f"[RBAC] DENEGADO: {request.user.username} -> {modulo}.{permiso} (Action: {action})")
+        # 8. Verificación final: permitir si tiene permiso en CUALQUIERA de los módulos definidos
+        for modulo in modulos:
+            # A. Intentar con el permiso específico mapeado
+            if tiene_permiso(request.user, modulo, permiso):
+                return True
+            
+            # B. Fallback para acciones de lectura: si tienes 'view_list' en el módulo,
+            # puedes ejecutar acciones de visualización básica (list/retrieve).
+            if action in ['list', 'retrieve'] and tiene_permiso(request.user, modulo, 'view_list'):
+                return True
         
-        return resultado
+        print(f"[RBAC] DENEGADO: {request.user.username} -> {modulos}.{permiso} (Action: {action})")
+        return False

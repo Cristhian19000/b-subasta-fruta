@@ -41,7 +41,7 @@ class SubastaViewSet(viewsets.ModelViewSet):
     """
     
     permission_classes = [IsAuthenticated, RBACPermission]
-    modulo_permiso = 'subastas'
+    modulo_permiso = ['subastas', 'packing']
     
     permisos_mapping = {
         'list': 'view_list',

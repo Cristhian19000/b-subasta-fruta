@@ -28,7 +28,7 @@ class EmpresaViewSet(viewsets.ModelViewSet):
     queryset = Empresa.objects.all()
     serializer_class = EmpresaSerializer
     permission_classes = [IsAuthenticated, RBACPermission]
-    modulo_permiso = 'catalogos'
+    modulo_permiso = ['catalogos', 'packing', 'subastas']
     
     permisos_mapping = {
         'list': 'view_empresas',
@@ -57,7 +57,7 @@ class TipoFrutaViewSet(viewsets.ModelViewSet):
     queryset = TipoFruta.objects.all()
     serializer_class = TipoFrutaSerializer
     permission_classes = [IsAuthenticated, RBACPermission]
-    modulo_permiso = 'catalogos'
+    modulo_permiso = ['catalogos', 'packing', 'subastas']
     
     permisos_mapping = {
         'list': 'view_tipos_fruta',

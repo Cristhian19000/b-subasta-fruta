@@ -8,8 +8,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Shield, Plus, Edit2, Trash2, Users, CheckCircle2, XCircle } from 'lucide-react';
 import axios from '../../api/axios';
 import PermisosEditor from '../../components/permisos/PermisosEditor';
+import { usePermissions } from '../../hooks/usePermissions';
 
 const Perfiles = () => {
+    const { hasPermission, isAdmin } = usePermissions();
     const [perfiles, setPerfiles] = useState([]);
     const [estructuraPermisos, setEstructuraPermisos] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -138,13 +140,15 @@ const Perfiles = () => {
                     </p>
                 </div>
 
-                <button
-                    onClick={handleCreate}
-                    className="flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors"
-                >
-                    <Plus className="w-5 h-5" />
-                    Crear Perfil
-                </button>
+                {(isAdmin() || hasPermission('usuarios', 'manage_profiles')) && (
+                    <button
+                        onClick={handleCreate}
+                        className="flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors"
+                    >
+                        <Plus className="w-5 h-5" />
+                        Crear Perfil
+                    </button>
+                )}
             </div>
 
             {/* Tabla de Perfiles */}
@@ -215,18 +219,22 @@ const Perfiles = () => {
                                     )}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                                    <button
-                                        onClick={() => handleEdit(perfil)}
-                                        className="text-gray-600 hover:text-gray-900 mr-3 cursor-pointer"
-                                    >
-                                        Editar
-                                    </button>
-                                    <button
-                                        onClick={() => handleDelete(perfil.id)}
-                                        className="text-red-600 hover:text-red-900 cursor-pointer"
-                                    >
-                                        Eliminar
-                                    </button>
+                                    {(isAdmin() || hasPermission('usuarios', 'manage_profiles')) && (
+                                        <>
+                                            <button
+                                                onClick={() => handleEdit(perfil)}
+                                                className="text-gray-600 hover:text-gray-900 mr-3 cursor-pointer"
+                                            >
+                                                Editar
+                                            </button>
+                                            <button
+                                                onClick={() => handleDelete(perfil.id)}
+                                                className="text-red-600 hover:text-red-900 cursor-pointer"
+                                            >
+                                                Eliminar
+                                            </button>
+                                        </>
+                                    )}
                                 </td>
                             </tr>
                         ))}
@@ -237,12 +245,14 @@ const Perfiles = () => {
                     <div className="text-center py-12 text-gray-500">
                         <Shield className="w-12 h-12 mx-auto mb-3 opacity-50" />
                         <p>No hay perfiles de permisos creados</p>
-                        <button
-                            onClick={handleCreate}
-                            className="text-blue-600 hover:text-blue-800 text-sm mt-2"
-                        >
-                            Crear el primer perfil
-                        </button>
+                        {(isAdmin() || hasPermission('usuarios', 'manage_profiles')) && (
+                            <button
+                                onClick={handleCreate}
+                                className="text-blue-600 hover:text-blue-800 text-sm mt-2"
+                            >
+                                Crear el primer perfil
+                            </button>
+                        )}
                     </div>
                 )}
             </div>

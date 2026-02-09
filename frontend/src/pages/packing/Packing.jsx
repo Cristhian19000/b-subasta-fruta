@@ -8,6 +8,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import { Button, Alert, Modal, Badge } from '../../components/common';
+import { usePermissions } from '../../hooks/usePermissions';
 import PackingForm from './PackingForm';
 import PackingDetalle from './PackingDetalle';
 
@@ -37,6 +38,7 @@ const getYear = (dateStr) => {
 };
 
 const Packing = () => {
+    const { hasPermission, isAdmin } = usePermissions();
     // Estados para datos
     const [packings, setPackings] = useState([]);
     const [packingsFiltrados, setPackingsFiltrados] = useState([]);
@@ -290,9 +292,11 @@ const Packing = () => {
                         Gestión de proyecciones semanales de empaque
                     </p>
                 </div>
-                <Button onClick={handleCreate}>
-                    + Nuevo Packing
-                </Button>
+                {(isAdmin() || hasPermission('packing', 'create')) && (
+                    <Button onClick={handleCreate}>
+                        + Nuevo Packing
+                    </Button>
+                )}
             </div>
 
             {/* Alertas */}
@@ -350,9 +354,11 @@ const Packing = () => {
             ) : packingsFiltrados.length === 0 ? (
                 <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
                     <p className="text-gray-500">No hay packings registrados</p>
-                    <Button className="mt-4" onClick={handleCreate}>
-                        Crear primer packing
-                    </Button>
+                    {(isAdmin() || hasPermission('packing', 'create')) && (
+                        <Button className="mt-4" onClick={handleCreate}>
+                            Crear primer packing
+                        </Button>
+                    )}
                 </div>
             ) : (
                 <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
@@ -414,24 +420,30 @@ const Packing = () => {
                                         </Badge>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                                        <button
-                                            onClick={() => handleView(packing.id)}
-                                            className="text-gray-600 hover:text-gray-900 mr-3 cursor-pointer"
-                                        >
-                                            Ver
-                                        </button>
-                                        <button
-                                            onClick={() => handleEdit(packing.id)}
-                                            className="text-gray-600 hover:text-gray-900 mr-3 cursor-pointer"
-                                        >
-                                            Editar
-                                        </button>
-                                        <button
-                                            onClick={() => handleDelete(packing.id)}
-                                            className="text-red-600 hover:text-red-900 cursor-pointer"
-                                        >
-                                            Eliminar
-                                        </button>
+                                        {(isAdmin() || hasPermission('packing', 'view_detail')) && (
+                                            <button
+                                                onClick={() => handleView(packing.id)}
+                                                className="text-gray-600 hover:text-gray-900 mr-3 cursor-pointer"
+                                            >
+                                                Ver
+                                            </button>
+                                        )}
+                                        {(isAdmin() || hasPermission('packing', 'update')) && (
+                                            <button
+                                                onClick={() => handleEdit(packing.id)}
+                                                className="text-gray-600 hover:text-gray-900 mr-3 cursor-pointer"
+                                            >
+                                                Editar
+                                            </button>
+                                        )}
+                                        {(isAdmin() || hasPermission('packing', 'delete')) && (
+                                            <button
+                                                onClick={() => handleDelete(packing.id)}
+                                                className="text-red-600 hover:text-red-900 cursor-pointer"
+                                            >
+                                                Eliminar
+                                            </button>
+                                        )}
                                     </td>
                                 </tr>
                             ))}

@@ -404,8 +404,6 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
                 {/* Tabla de detalles */}
                 {tipo.detalles && tipo.detalles.length > 0 ? (
                   <table className="min-w-full divide-y divide-gray-200 table-fixed">
-                    {" "}
-                    {/* 1. Añadido table-fixed */}
                     <thead className="bg-gray-50">
                       <tr>
                         {/* 2. Definimos anchos específicos para cada columna */}
@@ -468,20 +466,22 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
                                   </div>
                                 ) : subasta ? (
                                   <div className="flex gap-1">
-                                    <Button
-                                      size="sm"
-                                      variant="secondary"
-                                      onClick={() =>
-                                        handleVerSubasta(
-                                          subasta,
-                                          detalle,
-                                          tipo.tipo_fruta_nombre,
-                                        )
-                                      }
-                                    >
-                                      Ver
-                                    </Button>
-                                    {subasta.estado_actual === "PROGRAMADA" && (
+                                    {(isAdmin() || hasPermission('subastas', 'view_detail') || hasPermission('packing', 'create_auction')) && (
+                                      <Button
+                                        size="sm"
+                                        variant="secondary"
+                                        onClick={() =>
+                                          handleVerSubasta(
+                                            subasta,
+                                            detalle,
+                                            tipo.tipo_fruta_nombre,
+                                          )
+                                        }
+                                      >
+                                        Ver
+                                      </Button>
+                                    )}
+                                    {subasta.estado_actual === "PROGRAMADA" && (isAdmin() || hasPermission('subastas', 'update') || hasPermission('packing', 'create_auction')) && (
                                       <Button
                                         size="sm"
                                         variant="warning"
@@ -583,7 +583,9 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
         <Button variant="secondary" onClick={onClose}>
           Cerrar
         </Button>
-        <Button onClick={onEdit}>Editar</Button>
+        {(isAdmin() || hasPermission('packing', 'update')) && (
+          <Button onClick={onEdit}>Editar</Button>
+        )}
       </div>
 
       {/* Modal para crear/editar subasta */}
@@ -672,8 +674,8 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
                         }))
                       }
                       className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${subastaForm.duracion_horas === value
-                          ? "bg-blue-600 text-white border-blue-600"
-                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                         }`}
                     >
                       {label}

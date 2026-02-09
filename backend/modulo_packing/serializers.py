@@ -68,10 +68,12 @@ class PackingDetalleSerializer(serializers.ModelSerializer):
     """Serializer para el detalle diario."""
     
     dia_display = serializers.CharField(source='get_dia_display', read_only=True)
+    subasta_id = serializers.IntegerField(source='subasta.id', read_only=True, allow_null=True)
+    subasta_estado = serializers.CharField(source='subasta.estado_calculado', read_only=True, allow_null=True)
     
     class Meta:
         model = PackingDetalle
-        fields = ['id', 'dia', 'dia_display', 'fecha', 'py']
+        fields = ['id', 'dia', 'dia_display', 'fecha', 'py', 'subasta_id', 'subasta_estado']
         read_only_fields = ['id']
 
 
