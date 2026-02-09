@@ -214,20 +214,18 @@ const Perfiles = () => {
                                         </span>
                                     )}
                                 </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
                                     <button
                                         onClick={() => handleEdit(perfil)}
-                                        className="text-blue-600 hover:text-blue-900 mr-3"
-                                        title="Editar"
+                                        className="text-gray-600 hover:text-gray-900 mr-3 cursor-pointer"
                                     >
-                                        <Edit2 className="w-4 h-4" />
+                                        Editar
                                     </button>
                                     <button
                                         onClick={() => handleDelete(perfil.id)}
-                                        className="text-red-600 hover:text-red-900"
-                                        title="Eliminar"
+                                        className="text-red-600 hover:text-red-900 cursor-pointer"
                                     >
-                                        <Trash2 className="w-4 h-4" />
+                                        Eliminar
                                     </button>
                                 </td>
                             </tr>
