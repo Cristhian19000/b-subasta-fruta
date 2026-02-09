@@ -252,7 +252,7 @@ class PerfilPermisoViewSet(viewsets.ModelViewSet):
                     {'codigo': 'create', 'nombre': 'Crear Packing'},
                     {'codigo': 'update', 'nombre': 'Editar Packing'},
                     {'codigo': 'delete', 'nombre': 'Eliminar Packing'},
-                    {'codigo': 'create_auction', 'nombre': 'Crear Subasta desde Packing'}
+                    {'codigo': 'create_auction', 'nombre': 'Gestionar Subastas'}
                 ]
             },
             'subastas': {

@@ -67,6 +67,30 @@ class SubastaViewSet(viewsets.ModelViewSet):
         'packing_detalle__packing_tipo__packing_semanal__empresa__nombre',
     ]
     
+    def check_permissions(self, request):
+        """
+        Override para verificar permisos de subastas con alias del módulo packing.
+        Si tiene 'packing.create_auction', automáticamente tiene permisos de crear, ver y editar.
+        """
+        # Llamar a la verificación estándar primero
+        try:
+            super().check_permissions(request)
+            return  # Si pasa, no hacer nada más
+        except Exception:
+            pass  # Si falla, intentar con permisos alternativos de packing
+        
+        # Verificación alternativa: si tiene create_auction, puede crear, ver y editar
+        from usuarios.permissions import tiene_permiso
+        
+        if tiene_permiso(request.user, 'packing', 'create_auction'):
+            # Con create_auction puede hacer: create, retrieve, update
+            action = getattr(self, 'action', None)
+            if action in ['create', 'retrieve', 'update', 'partial_update']:
+                return  # Permitir estas acciones
+        
+        # Si no tiene permiso desde packing, llamar a super para que maneje el error
+        super().check_permissions(request)
+    
     def get_queryset(self):
         """Obtener subastas con filtros."""
         queryset = Subasta.objects.select_related(
