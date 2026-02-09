@@ -41,6 +41,12 @@ export const usePermissions = () => {
         const permisos = user.perfil_permiso.permisos || {};
         const permisosModulo = permisos[modulo] || [];
 
+        // Lógica implícita: Si tienes cualquier permiso en el módulo,
+        // automáticamente tienes view_list (necesitas ver el listado para hacer cualquier acción)
+        if (permiso === 'view_list' && permisosModulo.length > 0) {
+            return true;
+        }
+
         return permisosModulo.includes(permiso);
     };
 
