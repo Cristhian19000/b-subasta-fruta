@@ -71,6 +71,7 @@ class SubastaViewSet(viewsets.ModelViewSet):
         """
         Override para verificar permisos de subastas con alias del módulo packing.
         Si tiene 'packing.create_auction', automáticamente tiene permisos de crear, ver y editar.
+        Si tiene 'view_detail', automáticamente puede ver el historial de ofertas.
         """
         # Llamar a la verificación estándar primero
         try:
@@ -82,11 +83,17 @@ class SubastaViewSet(viewsets.ModelViewSet):
         # Verificación alternativa: si tiene create_auction, puede crear, ver y editar
         from usuarios.permissions import tiene_permiso
         
+        action = getattr(self, 'action', None)
+        
+        # Si tiene create_auction de packing, puede crear, ver y editar
         if tiene_permiso(request.user, 'packing', 'create_auction'):
-            # Con create_auction puede hacer: create, retrieve, update
-            action = getattr(self, 'action', None)
             if action in ['create', 'retrieve', 'update', 'partial_update']:
                 return  # Permitir estas acciones
+        
+        # Si tiene view_detail, puede ver el historial de ofertas
+        if action == 'historial_ofertas':
+            if tiene_permiso(request.user, 'subastas', 'view_detail') or tiene_permiso(request.user, 'packing', 'create_auction'):
+                return  # Permitir ver ofertas si puede ver detalles
         
         # Si no tiene permiso desde packing, llamar a super para que maneje el error
         super().check_permissions(request)

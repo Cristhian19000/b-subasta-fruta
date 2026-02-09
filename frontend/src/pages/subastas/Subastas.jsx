@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Button, Badge, Table, Modal, Input, Select, Alert } from '../../components/common';
 import { getSubastas, getResumenSubastas, actualizarEstadosSubastas, cancelarSubasta } from '../../api/subastas';
+import { usePermissions } from '../../hooks/usePermissions';
 import SubastaDetalle from './SubastaDetalle';
 import SubastaForm from './SubastaForm';
 import SubastaEditForm from './SubastaEditForm';
@@ -32,6 +33,7 @@ const ESTADO_LABELS = {
 
 const Subastas = () => {
     const location = useLocation();
+    const { hasPermission, isAdmin } = usePermissions();
 
     // Estados
     const [subastas, setSubastas] = useState([]);
@@ -321,16 +323,18 @@ const Subastas = () => {
             align: 'right',
             render: (_, row) => (
                 <div className="flex flex-col gap-1.5 min-w-[100px]">
-                    <Button
-                        size="sm"
-                        variant="primary"
-                        onClick={() => handleVerDetalle(row)}
-                        className="w-full text-xs"
-                    >
-                        Ver Detalle
-                    </Button>
+                    {(isAdmin() || hasPermission('subastas', 'view_detail')) && (
+                        <Button
+                            size="sm"
+                            variant="primary"
+                            onClick={() => handleVerDetalle(row)}
+                            className="w-full text-xs"
+                        >
+                            Ver Detalle
+                        </Button>
+                    )}
                     <div className="flex gap-1">
-                        {row.estado_actual === 'PROGRAMADA' && (
+                        {row.estado_actual === 'PROGRAMADA' && (isAdmin() || hasPermission('subastas', 'update')) && (
                             <Button
                                 size="sm"
                                 variant="warning"
@@ -341,7 +345,7 @@ const Subastas = () => {
                                 <Edit2 className="w-3.5 h-3.5" />
                             </Button>
                         )}
-                        {row.estado_actual !== 'FINALIZADA' && row.estado_actual !== 'CANCELADA' && (
+                        {row.estado_actual !== 'FINALIZADA' && row.estado_actual !== 'CANCELADA' && (isAdmin() || hasPermission('subastas', 'cancel')) && (
                             <Button
                                 size="sm"
                                 variant="danger"

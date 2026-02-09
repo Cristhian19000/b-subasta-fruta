@@ -260,11 +260,10 @@ class PerfilPermisoViewSet(viewsets.ModelViewSet):
                 'icono': 'Gavel',
                 'permisos': [
                     {'codigo': 'view_list', 'nombre': 'Ver Listado'},
-                    {'codigo': 'view_detail', 'nombre': 'Ver Detalle'},
+                    {'codigo': 'view_detail', 'nombre': 'Ver Detalle y Ofertas'},
                     {'codigo': 'create', 'nombre': 'Crear Subasta'},
                     {'codigo': 'update', 'nombre': 'Editar Subasta'},
-                    {'codigo': 'cancel', 'nombre': 'Cancelar Subasta'},
-                    {'codigo': 'view_bids', 'nombre': 'Ver Ofertas y Pujas'}
+                    {'codigo': 'cancel', 'nombre': 'Cancelar Subasta'}
                 ]
             },
             'reportes': {
