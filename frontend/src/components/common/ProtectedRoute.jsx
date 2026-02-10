@@ -48,7 +48,7 @@ const ProtectedRoute = ({ children, requirePermission, requireAdmin = false }) =
     if (requirePermission) {
         const [modulo, permiso] = requirePermission;
 
-        if (!hasPermission(modulo, permiso)) {
+        if (!isAdmin() && !hasPermission(modulo, permiso)) {
             return (
                 <div className="min-h-screen flex items-center justify-center bg-gray-50">
                     <div className="text-center">

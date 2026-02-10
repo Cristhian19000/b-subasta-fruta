@@ -270,7 +270,6 @@ class PerfilPermisoViewSet(viewsets.ModelViewSet):
                 'nombre': 'Reportes',
                 'icono': 'FileText',
                 'permisos': [
-                    {'codigo': 'view_reports', 'nombre': 'Ver Reportes'},
                     {'codigo': 'generate_clients', 'nombre': 'Generar Reporte de Clientes'},
                     {'codigo': 'generate_auctions', 'nombre': 'Generar Reporte de Subastas'},
                     {'codigo': 'generate_packings', 'nombre': 'Generar Reporte de Packings'}

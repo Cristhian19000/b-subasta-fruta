@@ -178,6 +178,13 @@ class RBACPermission(BasePermission):
             # puedes ejecutar acciones de visualización básica (list/retrieve).
             if action in ['list', 'retrieve'] and tiene_permiso(request.user, modulo, 'view_list'):
                 return True
+            
+            # C. Auto-incluir view_reports si tiene algún permiso de generación de reportes
+            if modulo == 'reportes' and permiso == 'view_reports':
+                if (tiene_permiso(request.user, 'reportes', 'generate_auctions') or
+                    tiene_permiso(request.user, 'reportes', 'generate_packings') or
+                    tiene_permiso(request.user, 'reportes', 'generate_clients')):
+                    return True
         
         print(f"[RBAC] DENEGADO: {request.user.username} -> {modulos}.{permiso} (Action: {action})")
         return False
