@@ -5,6 +5,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import { Button, Alert, Modal, Badge } from '../../components/common';
+import { usePermissions } from '../../hooks/usePermissions';
 import UsuarioForm from './UsuarioForm';
 
 const initialFormData = {
@@ -19,12 +20,16 @@ const initialFormData = {
 };
 
 const Usuarios = () => {
+    const { hasPermission, isAdmin } = usePermissions();
     const [usuarios, setUsuarios] = useState([]);
     const [perfiles, setPerfiles] = useState([]); // Perfiles de permisos disponibles
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [search, setSearch] = useState('');
+
+    // Verificar permisos
+    const canManage = isAdmin() || hasPermission('usuarios', 'manage_usuarios');
 
     const [showModal, setShowModal] = useState(false);
     const [modalMode, setModalMode] = useState('create');
@@ -172,9 +177,11 @@ const Usuarios = () => {
                         Gestión de usuarios del sistema
                     </p>
                 </div>
-                <Button onClick={handleCreate}>
-                    Nuevo Usuario
-                </Button>
+                {canManage && (
+                    <Button onClick={handleCreate}>
+                        Nuevo Usuario
+                    </Button>
+                )}
             </div>
 
             {/* Alertas */}
@@ -247,26 +254,32 @@ const Usuarios = () => {
                                         </Badge>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                                        <button
-                                            onClick={() => handleEdit(usuario.id)}
-                                            className="text-gray-600 hover:text-gray-900 mr-3 cursor-pointer"
-                                        >
-                                            Editar
-                                        </button>
-                                        {usuario.is_active ? (
-                                            <button
-                                                onClick={() => handleDelete(usuario.id)}
-                                                className="text-red-600 hover:text-red-900 cursor-pointer"
-                                            >
-                                                Desactivar
-                                            </button>
+                                        {canManage ? (
+                                            <>
+                                                <button
+                                                    onClick={() => handleEdit(usuario.id)}
+                                                    className="text-gray-600 hover:text-gray-900 mr-3 cursor-pointer"
+                                                >
+                                                    Editar
+                                                </button>
+                                                {usuario.is_active ? (
+                                                    <button
+                                                        onClick={() => handleDelete(usuario.id)}
+                                                        className="text-red-600 hover:text-red-900 cursor-pointer"
+                                                    >
+                                                        Desactivar
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => handleActivar(usuario.id)}
+                                                        className="text-green-600 hover:text-green-900 cursor-pointer"
+                                                    >
+                                                        Activar
+                                                    </button>
+                                                )}
+                                            </>
                                         ) : (
-                                            <button
-                                                onClick={() => handleActivar(usuario.id)}
-                                                className="text-green-600 hover:text-green-900 cursor-pointer"
-                                            >
-                                                Activar
-                                            </button>
+                                            <span className="text-gray-400 text-xs">Sin permisos</span>
                                         )}
                                     </td>
                                 </tr>

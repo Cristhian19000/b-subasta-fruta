@@ -43,7 +43,23 @@ const PermisosEditor = ({ permisos, onChange, estructura }) => {
                 }
             } else {
                 // Agregar permiso
-                newPermisos[codigoModulo] = [...permisosModulo, codigoPermiso];
+                let permisosAAgregar = [codigoPermiso];
+
+                // LÓGICA JERÁRQUICA: Si se selecciona manage_*, auto-seleccionar view_*
+                if (codigoPermiso.startsWith('manage_')) {
+                    const sufijo = codigoPermiso.substring(7); // Remover "manage_"
+                    const permisoView = `view_${sufijo}`;
+
+                    // Verificar si existe el permiso view correspondiente en la estructura
+                    if (estructura && estructura[codigoModulo]) {
+                        const existePermisoView = estructura[codigoModulo].permisos.some(p => p.codigo === permisoView);
+                        if (existePermisoView && !permisosModulo.includes(permisoView)) {
+                            permisosAAgregar.push(permisoView);
+                        }
+                    }
+                }
+
+                newPermisos[codigoModulo] = [...permisosModulo, ...permisosAAgregar];
             }
 
             return newPermisos;
@@ -135,8 +151,18 @@ const PermisosEditor = ({ permisos, onChange, estructura }) => {
                                             // view_list se marca automáticamente si hay otros permisos
                                             const otrosPermisosActivos = permisosModulo.filter(p => p !== 'view_list').length > 0;
                                             const isViewListAutoIncluido = permiso.codigo === 'view_list' && otrosPermisosActivos;
-                                            const isAutoChecked = isViewListAutoIncluido || isChecked;
-                                            const isDisabled = isViewListAutoIncluido;
+
+                                            // view_* se marca automáticamente si tiene manage_*
+                                            const isViewPermiso = permiso.codigo.startsWith('view_');
+                                            let isManageAutoIncluido = false;
+                                            if (isViewPermiso && permiso.codigo !== 'view_list') {
+                                                const sufijo = permiso.codigo.substring(5); // Remover "view_"
+                                                const permisoManage = `manage_${sufijo}`;
+                                                isManageAutoIncluido = permisosModulo.includes(permisoManage);
+                                            }
+
+                                            const isAutoChecked = isViewListAutoIncluido || isManageAutoIncluido || isChecked;
+                                            const isDisabled = isViewListAutoIncluido || isManageAutoIncluido;
 
                                             return (
                                                 <label
@@ -145,7 +171,13 @@ const PermisosEditor = ({ permisos, onChange, estructura }) => {
                                                             ? 'bg-blue-50 cursor-not-allowed'
                                                             : 'hover:bg-gray-50 cursor-pointer'
                                                         }`}
-                                                    title={isDisabled ? 'Auto-incluido: necesario para acceder al módulo' : ''}
+                                                    title={
+                                                        isViewListAutoIncluido
+                                                            ? 'Auto-incluido: necesario para acceder al módulo'
+                                                            : isManageAutoIncluido
+                                                                ? 'Auto-incluido: tienes permisos de gestión'
+                                                                : ''
+                                                    }
                                                 >
                                                     <input
                                                         type="checkbox"
@@ -157,8 +189,7 @@ const PermisosEditor = ({ permisos, onChange, estructura }) => {
                                                                 : 'text-blue-600 cursor-pointer'
                                                             }`}
                                                     />
-                                                    <span className={`text-sm flex-1 ${isDisabled ? 'text-blue-700 font-medium' : 'text-gray-700'
-                                                        }`}>
+                                                    <span className={`text-sm flex-1 ${isDisabled ? 'text-blue-700 font-medium' : 'text-gray-700'}`}>
                                                         {permiso.nombre}
                                                     </span>
                                                     {isDisabled && (

@@ -114,7 +114,7 @@ class UsuarioViewSet(viewsets.ModelViewSet):
     """
     ViewSet para gestionar usuarios trabajadores.
     
-    Solo accesible por administradores.
+    Solo accesible por administradores con permisos de usuarios.
     
     Endpoints:
         - GET    /api/usuarios/          -> Listar usuarios
@@ -129,6 +129,17 @@ class UsuarioViewSet(viewsets.ModelViewSet):
     serializer_class = UsuarioSerializer
     permission_classes = [IsAuthenticated, RBACPermission]
     modulo_permiso = 'usuarios'
+    
+    permisos_mapping = {
+        'list': 'view_usuarios',
+        'retrieve': 'view_usuarios',
+        'create': 'manage_usuarios',
+        'update': 'manage_usuarios',
+        'partial_update': 'manage_usuarios',
+        'destroy': 'manage_usuarios',
+        'activar': 'manage_usuarios',
+        'cambiar_password': 'manage_usuarios',
+    }
     
     def get_serializer_class(self):
         """Usar serializer simplificado para listados."""
@@ -180,7 +191,7 @@ class PerfilPermisoViewSet(viewsets.ModelViewSet):
     """
     ViewSet para gestionar perfiles de permisos.
     
-    Solo accesible por administradores.
+    Solo accesible por administradores con permisos de perfiles.
     
     Endpoints:
         - GET    /api/perfiles-permiso/                   -> Listar perfiles
@@ -196,13 +207,13 @@ class PerfilPermisoViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, RBACPermission]
     modulo_permiso = 'usuarios'
     permisos_mapping = {
-        'list': 'view_list',
-        'retrieve': 'view_list',
-        'create': 'manage_profiles',
-        'update': 'manage_profiles',
-        'partial_update': 'manage_profiles',
-        'destroy': 'manage_profiles',
-        'estructura_permisos': 'manage_profiles',
+        'list': 'view_perfiles',
+        'retrieve': 'view_perfiles',
+        'create': 'manage_perfiles',
+        'update': 'manage_perfiles',
+        'partial_update': 'manage_perfiles',
+        'destroy': 'manage_perfiles',
+        'estructura_permisos': 'view_perfiles',  # Necesario para ver la estructura al asignar
     }
     
     def perform_create(self, serializer):
@@ -289,11 +300,10 @@ class PerfilPermisoViewSet(viewsets.ModelViewSet):
                 'nombre': 'Usuarios y Perfiles',
                 'icono': 'UserCog',
                 'permisos': [
-                    {'codigo': 'view_list', 'nombre': 'Ver Listado de Usuarios y Perfiles'},
-                    {'codigo': 'create', 'nombre': 'Crear Usuario'},
-                    {'codigo': 'update', 'nombre': 'Editar Usuario'},
-                    {'codigo': 'delete', 'nombre': 'Eliminar Usuario'},
-                    {'codigo': 'manage_profiles', 'nombre': 'Gestionar Perfiles de Permisos'}
+                    {'codigo': 'view_usuarios', 'nombre': 'Ver Usuarios'},
+                    {'codigo': 'manage_usuarios', 'nombre': 'Gestionar Usuarios'},
+                    {'codigo': 'view_perfiles', 'nombre': 'Ver Perfiles de Permisos'},
+                    {'codigo': 'manage_perfiles', 'nombre': 'Gestionar Perfiles de Permisos'}
                 ]
             }
         }

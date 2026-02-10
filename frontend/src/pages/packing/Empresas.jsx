@@ -8,12 +8,17 @@
 import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import { Button, Alert, Modal, Badge, Input } from '../../components/common';
+import { usePermissions } from '../../hooks/usePermissions';
 
 const Empresas = () => {
+    const { hasPermission, isAdmin } = usePermissions();
     const [empresas, setEmpresas] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+
+    // Verificar permisos
+    const canManage = isAdmin() || hasPermission('catalogos', 'manage_empresas');
 
     // Estados para modal
     const [showModal, setShowModal] = useState(false);
@@ -115,9 +120,11 @@ const Empresas = () => {
                         Gestión de empresas agroindustriales
                     </p>
                 </div>
-                <Button onClick={handleCreate}>
-                    + Nueva Empresa
-                </Button>
+                {canManage && (
+                    <Button onClick={handleCreate}>
+                        + Nueva Empresa
+                    </Button>
+                )}
             </div>
 
             {/* Alertas */}
@@ -176,28 +183,33 @@ const Empresas = () => {
                                         {new Date(empresa.fecha_creacion).toLocaleDateString('es-PE')}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                                        <button
-                                            onClick={() => handleEdit(empresa)}
-                                            className="text-gray-600 hover:text-gray-900 mr-3 cursor-pointer"
-                                        >
-                                            Editar
-                                        </button>
-                                        <button
-                                            onClick={() => handleToggleActivo(empresa)}
-                                            className={`mr-3 cursor-pointer ${
-                                                empresa.activo 
-                                                    ? 'text-yellow-600 hover:text-yellow-900' 
-                                                    : 'text-green-600 hover:text-green-900'
-                                            }`}
-                                        >
-                                            {empresa.activo ? 'Desactivar' : 'Activar'}
-                                        </button>
-                                        <button
-                                            onClick={() => handleDelete(empresa.id)}
-                                            className="text-red-600 hover:text-red-900 cursor-pointer"
-                                        >
-                                            Eliminar
-                                        </button>
+                                        {canManage ? (
+                                            <>
+                                                <button
+                                                    onClick={() => handleEdit(empresa)}
+                                                    className="text-gray-600 hover:text-gray-900 mr-3 cursor-pointer"
+                                                >
+                                                    Editar
+                                                </button>
+                                                <button
+                                                    onClick={() => handleToggleActivo(empresa)}
+                                                    className={`mr-3 cursor-pointer ${empresa.activo
+                                                            ? 'text-yellow-600 hover:text-yellow-900'
+                                                            : 'text-green-600 hover:text-green-900'
+                                                        }`}
+                                                >
+                                                    {empresa.activo ? 'Desactivar' : 'Activar'}
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDelete(empresa.id)}
+                                                    className="text-red-600 hover:text-red-900 cursor-pointer"
+                                                >
+                                                    Eliminar
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <span className="text-gray-400 text-xs">Sin permisos</span>
+                                        )}
                                     </td>
                                 </tr>
                             ))}

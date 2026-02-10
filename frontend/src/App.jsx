@@ -81,7 +81,7 @@ function App() {
 
                         {/* Módulo de usuarios */}
                         <Route path="usuarios" element={
-                            <ProtectedRoute requirePermission={['usuarios', 'view_list']}>
+                            <ProtectedRoute requirePermission={['usuarios', 'view_usuarios']}>
                                 <Usuarios />
                             </ProtectedRoute>
                         } />

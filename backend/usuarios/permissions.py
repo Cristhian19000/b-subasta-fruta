@@ -15,6 +15,7 @@ def tiene_permiso(usuario, modulo, permiso):
     Verifica si un usuario tiene un permiso específico en un módulo.
     
     Soporta formatos de permisos JSON como listas o diccionarios.
+    Implementa lógica jerárquica: manage_* implica view_*
     """
     if not usuario or not usuario.is_authenticated:
         return False
@@ -45,21 +46,36 @@ def tiene_permiso(usuario, modulo, permiso):
     permisos_json = perfil_permiso.permisos or {}
     permisos_modulo = permisos_json.get(modulo, [])
     
-    if isinstance(permisos_modulo, dict):
-        # Formato: {"view_list": true, "create": false}
-        if permisos_modulo.get(permiso, False) is True:
-            return True
-    elif isinstance(permisos_modulo, list):
-        # Formato: ["view_list", "create"]
-        if permiso in permisos_modulo:
+    # Helper para verificar si tiene un permiso
+    def _tiene_permiso_directo(perm):
+        if isinstance(permisos_modulo, dict):
+            # Formato: {"view_list": true, "create": false}
+            return permisos_modulo.get(perm, False) is True
+        elif isinstance(permisos_modulo, list):
+            # Formato: ["view_list", "create"]
+            return perm in permisos_modulo
+        return False
+    
+    # 7. LÓGICA JERÁRQUICA: manage_* implica view_*
+    # Si tiene permiso directo, permitir
+    if _tiene_permiso_directo(permiso):
+        return True
+    
+    # Si pide view_* y tiene manage_*, permitir
+    if permiso.startswith('view_'):
+        # Extraer el sufijo (ej: "view_empresas" -> "empresas")
+        sufijo = permiso[5:]  # Remover "view_"
+        manage_permiso = f"manage_{sufijo}"
+        if _tiene_permiso_directo(manage_permiso):
             return True
     
-    # 7. Lógica implícita: Si pides 'view_list' y tienes cualquier permiso en el módulo, se permite.
+    # 8. Lógica implícita: Si pides 'view_list' y tienes cualquier permiso en el módulo, se permite.
     # Esto es consistente con la lógica del frontend y necesario para navegar.
     if permiso == 'view_list' and len(permisos_modulo) > 0:
         return True
     
     return False
+
 
 
 def requiere_permiso(modulo, permiso):
