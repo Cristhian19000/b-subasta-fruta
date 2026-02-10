@@ -7,6 +7,7 @@ contactos y estados de ficha.
 """
 
 from django.db import models
+from django.contrib.auth.models import User
 
 
 class Cliente(models.Model):
@@ -179,7 +180,7 @@ class Cliente(models.Model):
     
     # Usuario administrador que creó este cliente
     creado_por = models.ForeignKey(
-        'usuarios.PerfilUsuario', 
+        User,
         on_delete=models.SET_NULL, 
         null=True, 
         blank=True,

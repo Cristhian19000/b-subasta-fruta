@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { getFirstAvailableRoute } from '../../utils/navigation';
 
 const Login = () => {
     const [username, setUsername] = useState('');
@@ -21,7 +22,12 @@ const Login = () => {
 
         try {
             await login(username, password);
-            navigate('/dashboard');
+
+            // Obtener datos del usuario para determinar la mejor ruta
+            const userData = JSON.parse(localStorage.getItem('user'));
+            const firstRoute = getFirstAvailableRoute(userData);
+
+            navigate(firstRoute);
         } catch (err) {
             setError(err.response?.data?.error || 'Error al iniciar sesión');
         } finally {
