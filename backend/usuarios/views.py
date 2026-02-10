@@ -147,9 +147,43 @@ class UsuarioViewSet(viewsets.ModelViewSet):
             return UsuarioListSerializer
         return UsuarioSerializer
     
+    def update(self, request, *args, **kwargs):
+        """Actualizar usuario - prevenir auto-bloqueo."""
+        instance = self.get_object()
+        
+        # Prevenir que un usuario se edite a sí mismo si no es superusuario
+        if instance.id == request.user.id and not request.user.is_superuser:
+            return Response(
+                {'error': 'No puedes editar tu propio usuario. Por seguridad, solicita a otro administrador que realice los cambios.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        return super().update(request, *args, **kwargs)
+    
+    def partial_update(self, request, *args, **kwargs):
+        """Actualización parcial - prevenir auto-bloqueo."""
+        instance = self.get_object()
+        
+        # Prevenir que un usuario se edite a sí mismo si no es superusuario
+        if instance.id == request.user.id and not request.user.is_superuser:
+            return Response(
+                {'error': 'No puedes editar tu propio usuario. Por seguridad, solicita a otro administrador que realice los cambios.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        return super().partial_update(request, *args, **kwargs)
+    
     def destroy(self, request, *args, **kwargs):
         """Eliminar usuario (desactivar en lugar de eliminar)."""
         instance = self.get_object()
+        
+        # Prevenir que un usuario se desactive a sí mismo
+        if instance.id == request.user.id:
+            return Response(
+                {'error': 'No puedes desactivar tu propio usuario.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
         instance.is_active = False
         instance.save()
         return Response(
@@ -218,12 +252,8 @@ class PerfilPermisoViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         """Guardar quién creó el perfil."""
-        # Obtener el perfil del usuario autenticado
-        creado_por = None
-        if hasattr(self.request.user, 'perfil'):
-            creado_por = self.request.user.perfil
-        
-        serializer.save(creado_por=creado_por)
+        # El campo creado_por espera un User, no un PerfilUsuario
+        serializer.save(creado_por=self.request.user)
     
     @action(detail=False, methods=['get'])
     def estructura_permisos(self, request):

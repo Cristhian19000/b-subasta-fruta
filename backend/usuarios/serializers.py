@@ -191,6 +191,7 @@ class UsuarioListSerializer(serializers.ModelSerializer):
     """Serializer simplificado para listar usuarios."""
     
     es_administrador = serializers.SerializerMethodField()
+    perfil_permiso = serializers.SerializerMethodField()
     
     class Meta:
         model = User
@@ -202,6 +203,7 @@ class UsuarioListSerializer(serializers.ModelSerializer):
             'last_name',
             'is_active',
             'es_administrador',
+            'perfil_permiso',
         ]
     
     def get_es_administrador(self, obj):
@@ -209,6 +211,16 @@ class UsuarioListSerializer(serializers.ModelSerializer):
         if hasattr(obj, 'perfil'):
             return obj.perfil.es_administrador
         return False
+    
+    def get_perfil_permiso(self, obj):
+        """Obtener información del perfil de permisos asignado."""
+        if hasattr(obj, 'perfil') and obj.perfil.perfil_permiso:
+            return {
+                'id': obj.perfil.perfil_permiso.id,
+                'nombre': obj.perfil.perfil_permiso.nombre,
+                'es_superusuario': obj.perfil.perfil_permiso.es_superusuario
+            }
+        return None
 
 
 class LoginSerializer(serializers.Serializer):

@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import { Button, Alert, Modal, Badge } from '../../components/common';
 import { usePermissions } from '../../hooks/usePermissions';
+import { useAuth } from '../../context/AuthContext';
 import UsuarioForm from './UsuarioForm';
 
 const initialFormData = {
@@ -21,6 +22,7 @@ const initialFormData = {
 
 const Usuarios = () => {
     const { hasPermission, isAdmin } = usePermissions();
+    const { user } = useAuth();
     const [usuarios, setUsuarios] = useState([]);
     const [perfiles, setPerfiles] = useState([]); // Perfiles de permisos disponibles
     const [loading, setLoading] = useState(true);
@@ -144,13 +146,20 @@ const Usuarios = () => {
             const errorData = err.response?.data;
 
             if (errorData && typeof errorData === 'object') {
-                // Si son errores de campo, guardarlos para mostrarlos en campos individuales
-                setFormErrors(errorData);
-                // NO mostrar mensaje general, solo errores inline en el formulario
+                // Si hay un error general (como auto-edición), mostrarlo como mensaje general
+                if (errorData.error) {
+                    setError(errorData.error);
+                    setShowModal(false);
+                } else {
+                    // Si son errores de campo, guardarlos para mostrarlos en campos individuales
+                    setFormErrors(errorData);
+                    // NO mostrar mensaje general, solo errores inline en el formulario
+                }
             } else {
                 // Solo mostrar mensaje general si no son errores de campo
                 setError(err.response?.data?.detail || 'Error al guardar el usuario');
             }
+            setTimeout(() => setError(''), 5000);
         }
     };
 
@@ -221,7 +230,7 @@ const Usuarios = () => {
                                     Email
                                 </th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Rol
+                                    Perfil
                                 </th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Estado
@@ -244,9 +253,20 @@ const Usuarios = () => {
                                         {usuario.email || '-'}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
-                                        <Badge variant={usuario.es_administrador ? 'purple' : 'default'}>
-                                            {usuario.es_administrador ? 'Administrador' : 'Trabajador'}
-                                        </Badge>
+                                        {usuario.es_administrador ? (
+                                            <Badge variant="purple">Administrador</Badge>
+                                        ) : usuario.perfil_permiso ? (
+                                            <div className="text-sm">
+                                                <div className="text-gray-900 font-medium">
+                                                    {usuario.perfil_permiso.nombre}
+                                                </div>
+                                                {usuario.perfil_permiso.es_superusuario && (
+                                                    <div className="text-xs text-purple-600">Acceso Total</div>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <span className="text-gray-400 text-sm italic">Sin perfil</span>
+                                        )}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <Badge variant={usuario.is_active ? 'success' : 'error'}>
@@ -256,26 +276,34 @@ const Usuarios = () => {
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
                                         {canManage ? (
                                             <>
-                                                <button
-                                                    onClick={() => handleEdit(usuario.id)}
-                                                    className="text-gray-600 hover:text-gray-900 mr-3 cursor-pointer"
-                                                >
-                                                    Editar
-                                                </button>
-                                                {usuario.is_active ? (
-                                                    <button
-                                                        onClick={() => handleDelete(usuario.id)}
-                                                        className="text-red-600 hover:text-red-900 cursor-pointer"
-                                                    >
-                                                        Desactivar
-                                                    </button>
+                                                {usuario.id === user?.id ? (
+                                                    <span className="text-gray-400 text-xs" title="No puedes editar tu propio usuario">
+                                                        (Tú)
+                                                    </span>
                                                 ) : (
-                                                    <button
-                                                        onClick={() => handleActivar(usuario.id)}
-                                                        className="text-green-600 hover:text-green-900 cursor-pointer"
-                                                    >
-                                                        Activar
-                                                    </button>
+                                                    <>
+                                                        <button
+                                                            onClick={() => handleEdit(usuario.id)}
+                                                            className="text-gray-600 hover:text-gray-900 mr-3 cursor-pointer"
+                                                        >
+                                                            Editar
+                                                        </button>
+                                                        {usuario.is_active ? (
+                                                            <button
+                                                                onClick={() => handleDelete(usuario.id)}
+                                                                className="text-red-600 hover:text-red-900 cursor-pointer"
+                                                            >
+                                                                Desactivar
+                                                            </button>
+                                                        ) : (
+                                                            <button
+                                                                onClick={() => handleActivar(usuario.id)}
+                                                                className="text-green-600 hover:text-green-900 cursor-pointer"
+                                                            >
+                                                                Activar
+                                                            </button>
+                                                        )}
+                                                    </>
                                                 )}
                                             </>
                                         ) : (

@@ -219,7 +219,7 @@ const Perfiles = () => {
                                     )}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                                    {(isAdmin() || hasPermission('usuarios', 'manage_perfiles')) && (
+                                    {(isAdmin() || hasPermission('usuarios', 'manage_perfiles')) ? (
                                         <>
                                             <button
                                                 onClick={() => handleEdit(perfil)}
@@ -234,6 +234,8 @@ const Perfiles = () => {
                                                 Eliminar
                                             </button>
                                         </>
+                                    ) : (
+                                        <span className="text-gray-400 text-xs">Sin permisos</span>
                                     )}
                                 </td>
                             </tr>
