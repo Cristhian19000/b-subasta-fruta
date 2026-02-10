@@ -31,16 +31,23 @@ class DashboardViewSet(viewsets.ViewSet):
     modulo_permiso = 'dashboard'
     
     permisos_mapping = {
+        # Base
         'list': 'view_dashboard',
-        'estadisticas': 'view_kpis',
-        'tendencia_subastas': 'view_kpis',
-        'volumen_por_fruta': 'view_kpis',
-        'estado_packings': 'view_kpis',
-        'ingresos_periodo': 'view_kpis',
-        'subastas_recientes': 'view_dashboard',
-        'top_clientes': 'view_kpis',
-        'proximas_subastas': 'view_dashboard',
-        'resumen': 'view_dashboard', # Cualquier usuario con acceso al dashboard puede ver el resumen
+        
+        # Gráficos de Resumen (donut charts)
+        'resumen': 'view_summary',
+        
+        # Tablas
+        'subastas_recientes': 'view_tables',
+        'top_clientes': 'view_tables',
+        
+        # Reportes y Estadísticas
+        'estadisticas': 'view_reports',
+        'tendencia_subastas': 'view_reports',
+        'volumen_por_fruta': 'view_reports',
+        'estado_packings': 'view_reports',
+        'ingresos_periodo': 'view_reports',
+        'proximas_subastas': 'view_reports',
     }
     
     def list(self, request):

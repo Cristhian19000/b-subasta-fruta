@@ -150,7 +150,13 @@ class RBACPermission(BasePermission):
         if not request.user or not request.user.is_authenticated:
             return False
             
-        # 2. Superusuario de Django tiene acceso total
+        # 2. Verificar si es un Cliente (app móvil) - Los clientes no usan RBAC
+        # Los clientes solo pueden acceder a sus propios endpoints específicos
+        if not hasattr(request.user, 'is_superuser'):
+            # Es un Cliente, no aplicar RBAC (los endpoints de Cliente manejan sus propios permisos)
+            return True
+            
+        # 3. Superusuario de Django tiene acceso total
         if request.user.is_superuser:
             return True
             

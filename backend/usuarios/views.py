@@ -269,8 +269,10 @@ class PerfilPermisoViewSet(viewsets.ModelViewSet):
                 'nombre': 'Dashboard',
                 'icono': 'LayoutDashboard',
                 'permisos': [
-                    {'codigo': 'view_dashboard', 'nombre': 'Ver Dashboard'},
-                    {'codigo': 'view_kpis', 'nombre': 'Ver KPIs y Estadísticas'}
+                    {'codigo': 'view_dashboard', 'nombre': 'Acceder al Dashboard'},
+                    {'codigo': 'view_summary', 'nombre': 'Ver Resúmenes'},
+                    {'codigo': 'view_tables', 'nombre': 'Ver Tablas'},
+                    {'codigo': 'view_reports', 'nombre': 'Ver Reportes'}
                 ]
             },
             'clientes': {

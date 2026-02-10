@@ -53,7 +53,7 @@ class SubastaViewSet(viewsets.ModelViewSet):
         'cancelar': 'cancel',
         'historial_ofertas': 'view_bids',
         'resumen': 'view_list',
-        'actualizar_estados': 'update',
+        'actualizar_estados': 'view_list',
     }
     
     # Backends de filtrado: búsqueda por texto

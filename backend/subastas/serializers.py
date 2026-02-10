@@ -627,7 +627,7 @@ class HistorialPujaSerializer(serializers.ModelSerializer):
     def get_cantidad(self, obj):
         """Cantidad en kilogramos."""
         kilos = obj.subasta.packing_detalle.py
-        return f"{kilos:.0f} kg"
+        return f"{kilos:.2f} kg"
     
     def get_unidad(self, obj):
         """Unidad de precio (siempre kg)."""
