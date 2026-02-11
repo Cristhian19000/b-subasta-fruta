@@ -70,11 +70,32 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
         // Manejar respuesta paginada o array directo
         const data = response.data?.results || response.data || [];
         const subastasArray = Array.isArray(data) ? data : [];
+        
         // Crear un mapa de packing_detalle_id -> subasta
+        // Priorizar subastas NO canceladas cuando hay múltiples para el mismo detalle
         const subastasMap = {};
+        
+        // Primero agregamos todas, las canceladas se sobrescriben si hay otra
         subastasArray.forEach((s) => {
-          subastasMap[s.packing_detalle] = s;
+          const existente = subastasMap[s.packing_detalle];
+          
+          // Si no hay existente, agregar
+          if (!existente) {
+            subastasMap[s.packing_detalle] = s;
+          } 
+          // Si la existente está cancelada y la nueva no, reemplazar
+          else if (existente.estado_actual === 'CANCELADA' && s.estado_actual !== 'CANCELADA') {
+            subastasMap[s.packing_detalle] = s;
+          }
+          // Si ambas están no canceladas, priorizar por fecha más reciente
+          else if (existente.estado_actual !== 'CANCELADA' && s.estado_actual !== 'CANCELADA') {
+            // Comparar fechas de creación
+            if (new Date(s.fecha_creacion) > new Date(existente.fecha_creacion)) {
+              subastasMap[s.packing_detalle] = s;
+            }
+          }
         });
+        
         setSubastas(subastasMap);
       } catch (err) {
         console.error("Error cargando subastas:", err);
@@ -151,10 +172,22 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
     const response = await getSubastasPorPacking(packing.id);
     const data = response.data?.results || response.data || [];
     const subastasArray = Array.isArray(data) ? data : [];
+    
+    // Priorizar subastas NO canceladas cuando hay múltiples para el mismo detalle
     const subastasMap = {};
     subastasArray.forEach((s) => {
-      subastasMap[s.packing_detalle] = s;
+      const existente = subastasMap[s.packing_detalle];
+      if (!existente) {
+        subastasMap[s.packing_detalle] = s;
+      } else if (existente.estado_actual === 'CANCELADA' && s.estado_actual !== 'CANCELADA') {
+        subastasMap[s.packing_detalle] = s;
+      } else if (existente.estado_actual !== 'CANCELADA' && s.estado_actual !== 'CANCELADA') {
+        if (new Date(s.fecha_creacion) > new Date(existente.fecha_creacion)) {
+          subastasMap[s.packing_detalle] = s;
+        }
+      }
     });
+    
     setSubastas(subastasMap);
   };
 
@@ -201,11 +234,21 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
       setDetalleParaSubasta(null);
     } catch (err) {
       console.error("Error creando subasta:", err);
-      const errorMsg =
-        err.response?.data?.packing_detalle?.[0] ||
-        err.response?.data?.fecha_hora_inicio?.[0] ||
-        err.response?.data?.detail ||
-        "Error al crear la subasta";
+
+      // Extraer mensaje de error específico del backend
+      let errorMsg = "Error al crear la subasta";
+      if (err.response?.data) {
+        // Si es un error de validación de campo específico
+        if (typeof err.response.data === 'object') {
+          const errors = Object.entries(err.response.data)
+            .map(([field, msgs]) => `${field}: ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`)
+            .join('\n');
+          errorMsg = errors || errorMsg;
+        } else if (typeof err.response.data === 'string') {
+          errorMsg = err.response.data;
+        }
+      }
+
       setErrorSubasta(errorMsg);
     } finally {
       setCreandoSubasta(false);
@@ -466,6 +509,7 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
                                   </div>
                                 ) : subasta ? (
                                   <div className="flex gap-1">
+                                    {/* Botón Ver - disponible para todos los estados */}
                                     {(isAdmin() || hasPermission('subastas', 'view_detail') || hasPermission('packing', 'create_auction')) && (
                                       <Button
                                         size="sm"
@@ -481,6 +525,7 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
                                         Ver
                                       </Button>
                                     )}
+                                    {/* Botón Editar - solo para PROGRAMADA */}
                                     {subasta.estado_actual === "PROGRAMADA" && (isAdmin() || hasPermission('subastas', 'update') || hasPermission('packing', 'create_auction')) && (
                                       <Button
                                         size="sm"
@@ -494,6 +539,22 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
                                         }
                                       >
                                         Editar
+                                      </Button>
+                                    )}
+                                    {/* Botón Volver a Subastar - solo para CANCELADA */}
+                                    {subasta.estado_actual === "CANCELADA" && (isAdmin() || hasPermission('packing', 'create_auction')) && (
+                                      <Button
+                                        size="sm"
+                                        variant="warning"
+                                        onClick={() =>
+                                          handleAbrirSubastaModal(
+                                            detalle,
+                                            tipo.tipo_fruta_nombre,
+                                          )
+                                        }
+                                        title="Crear nueva subasta para este día"
+                                      >
+                                        Volver a Subastar
                                       </Button>
                                     )}
                                   </div>

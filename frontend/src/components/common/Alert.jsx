@@ -2,8 +2,9 @@
  * Componente Alert - Alerta para mensajes de éxito/error.
  */
 
-const Alert = ({ type = 'info', message, onClose }) => {
-    if (!message) return null;
+const Alert = ({ type = 'info', message, onClose, children }) => {
+    const content = message || children;
+    if (!content) return null;
 
     const styles = {
         success: 'bg-green-50 border-green-200 text-green-700',
@@ -38,7 +39,9 @@ const Alert = ({ type = 'info', message, onClose }) => {
     return (
         <div className={`flex items-center gap-3 px-4 py-3 rounded-md border ${styles[type]} mb-4`}>
             {icons[type]}
-            <p className="text-sm flex-1">{message}</p>
+            <div className="text-sm flex-1">
+                {message ? <span>{message}</span> : <>{children}</>}
+            </div>
             {onClose && (
                 <button onClick={onClose} className="hover:opacity-70 transition-opacity">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

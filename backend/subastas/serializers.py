@@ -81,6 +81,9 @@ class SubastaListSerializer(serializers.ModelSerializer):
     cliente_ganando = serializers.SerializerMethodField()
     total_ofertas = serializers.SerializerMethodField()
     
+    # Indicador de si fue reactivada (solo para canceladas)
+    fue_reactivada = serializers.SerializerMethodField()
+    
     class Meta:
         model = Subasta
         fields = [
@@ -101,6 +104,7 @@ class SubastaListSerializer(serializers.ModelSerializer):
             'cliente_ganando',
             'total_ofertas',
             'fecha_creacion',
+            'fue_reactivada',
         ]
     
     def get_cliente_ganando(self, obj):
@@ -129,6 +133,24 @@ class SubastaListSerializer(serializers.ModelSerializer):
     def get_total_ofertas(self, obj):
         """Total de ofertas en la subasta."""
         return obj.ofertas.count()
+
+    def get_fue_reactivada(self, obj):
+        """
+        Indica si esta subasta cancelada fue reemplazada por otra.
+        Solo aplica a subastas CANCELADAS.
+        """
+        if obj.estado != 'CANCELADA':
+            return None  # No aplica para no canceladas
+        
+        # Verificar si existe otra subasta NO cancelada para el mismo packing_detalle
+        from .models import Subasta
+        return Subasta.objects.filter(
+            packing_detalle=obj.packing_detalle
+        ).exclude(
+            estado='CANCELADA'
+        ).exclude(
+            id=obj.id
+        ).exists()
 
 
 class SubastaDetailSerializer(serializers.ModelSerializer):
@@ -160,6 +182,10 @@ class SubastaDetailSerializer(serializers.ModelSerializer):
     semana = serializers.SerializerMethodField()
     ahora_servidor = serializers.SerializerMethodField()
     
+    # Indicador de si fue reactivada (para canceladas)
+    fue_reactivada = serializers.SerializerMethodField()
+    subasta_reemplazo = serializers.SerializerMethodField()
+    
     class Meta:
         model = Subasta
         fields = [
@@ -185,6 +211,8 @@ class SubastaDetailSerializer(serializers.ModelSerializer):
             'fecha_creacion',
             'fecha_actualizacion',
             'ahora_servidor',
+            'fue_reactivada',
+            'subasta_reemplazo',
         ]
     
     def get_imagenes(self, obj):
@@ -206,6 +234,42 @@ class SubastaDetailSerializer(serializers.ModelSerializer):
         """Retorna la hora actual del servidor en formato ISO."""
         return timezone.now()
 
+    def get_fue_reactivada(self, obj):
+        """Indica si esta subasta cancelada fue reemplazada por otra."""
+        if obj.estado != 'CANCELADA':
+            return None
+        
+        from .models import Subasta
+        return Subasta.objects.filter(
+            packing_detalle=obj.packing_detalle
+        ).exclude(
+            estado='CANCELADA'
+        ).exclude(
+            id=obj.id
+        ).exists()
+
+    def get_subasta_reemplazo(self, obj):
+        """Retorna info de la subasta que reemplazó a esta cancelada."""
+        if obj.estado != 'CANCELADA':
+            return None
+        
+        from .models import Subasta
+        reemplazo = Subasta.objects.filter(
+            packing_detalle=obj.packing_detalle
+        ).exclude(
+            estado='CANCELADA'
+        ).exclude(
+            id=obj.id
+        ).order_by('-fecha_creacion').first()
+        
+        if reemplazo:
+            return {
+                'id': reemplazo.id,
+                'estado': reemplazo.estado_calculado,
+                'fecha_hora_inicio': reemplazo.fecha_hora_inicio,
+            }
+        return None
+
 
 class SubastaCreateSerializer(serializers.ModelSerializer):
     """Serializer para crear/programar subastas (RF-01)."""
@@ -220,12 +284,16 @@ class SubastaCreateSerializer(serializers.ModelSerializer):
         ]
     
     def validate_packing_detalle(self, value):
-        """RF-01: Solo una subasta por registro de producción."""
-        # Verificar si ya existe una subasta para este detalle
-        if Subasta.objects.filter(packing_detalle=value).exists():
-            raise serializers.ValidationError(
-                "Ya existe una subasta para este registro de producción."
-            )
+        """RF-01: Solo permitir crear nueva subasta si la anterior fue CANCELADA."""
+        # Verificar si existe alguna subasta que NO esté cancelada
+        # (PROGRAMADA, ACTIVA, o FINALIZADA todas bloquean la creación)
+        subasta_activa = Subasta.objects.filter(
+            packing_detalle=value
+        ).exclude(estado='CANCELADA').exists()
+        
+        if subasta_activa:
+            raise serializers.ValidationError('Ya existe Subasta con este Producción Diaria.')
+        
         return value
     
     def validate(self, data):

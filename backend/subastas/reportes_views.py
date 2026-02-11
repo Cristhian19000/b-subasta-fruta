@@ -618,7 +618,7 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
             'tipos', 
             'tipos__tipo_fruta', 
             'tipos__detalles',
-            'tipos__detalles__subasta'  # PREFETCH CRÍTICO: Evita N+1 en el bucle
+            'tipos__detalles__subastas'  # PREFETCH CRÍTICO: Evita N+1 en el bucle (plural por ForeignKey)
         ).order_by('-fecha_inicio_semana', 'empresa__nombre')
         
         # Filtros de fecha
@@ -727,11 +727,12 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
                 detalles_dict = {d.dia: d for d in detalles_queryset}
                 
                 # --- CALCULAR ESTADO ESPECÍFICO PARA ESTE TIPO (Optimizado) ---
-                # Ya no consultamos la BD, usamos los objetos pre-cargados
+                # Ahora usamos la property subasta_activa que retorna la subasta no cancelada
                 subastas_tipo = []
                 for detalle in detalles_queryset:
-                    if hasattr(detalle, 'subasta'):
-                        subastas_tipo.append(detalle.subasta)
+                    subasta = detalle.subasta_activa  # Property que retorna subasta no cancelada
+                    if subasta:
+                        subastas_tipo.append(subasta)
                 
                 estados_list = [s.estado_calculado for s in subastas_tipo]
                 
@@ -792,16 +793,23 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
                     if 4 <= col_num <= 10:
                         cell.number_format = '#,##0.00'
                     
-                    # --- APLICAR COLOR NARANJA SOLO SI LA SUBASTA ESTÁ CANCELADA ---
+                    # --- APLICAR COLOR NARANJA SOLO SI EL DÍA ESTÁ CANCELADO SIN REACTIVAR ---
+                    # Un día está "cancelado sin reactivar" si:
+                    # - Tiene subastas (hay historial)
+                    # - Pero NO tiene subasta activa (subasta_activa es None)
+                    # Esto significa que solo tiene subastas CANCELADAS
                     if 4 <= col_num <= 9:
                         dia_nombre = dias_semana[col_num - 4]
                         detalle_dia = detalles_dict.get(dia_nombre)
                         
                         if detalle_dia and value > 0:
-                            # Usamos hasattr para evitar consultas N+1
-                            if hasattr(detalle_dia, 'subasta'):
-                                if detalle_dia.subasta.estado_calculado == 'CANCELADA':
-                                    cell.fill = fill_cancelada 
+                            # subasta_activa retorna None si solo hay canceladas
+                            subasta_activa = detalle_dia.subasta_activa
+                            tiene_subastas = detalle_dia.subastas.exists()
+                            
+                            # Marcar naranja si tiene historial de subastas pero ninguna vigente
+                            if tiene_subastas and subasta_activa is None:
+                                cell.fill = fill_cancelada 
                 
                 row_num += 1
         

@@ -234,7 +234,9 @@ const Packing = () => {
                 // Extraemos todos los mensajes de error en una sola cadena
                 const mensajes = Object.entries(errorData).map(([campo, errores]) => {
                     const nombreCampo = campo === 'fecha_inicio_semana' ? 'Fecha' : campo;
-                    return `${nombreCampo}: ${errores.join(', ')}`;
+                    // errores puede ser array o string
+                    const mensajeError = Array.isArray(errores) ? errores.join(', ') : String(errores);
+                    return `${nombreCampo}: ${mensajeError}`;
                 }).join(' | ');
 
                 setError(mensajes); // Este estado 'error' debe mostrarse en tu UI

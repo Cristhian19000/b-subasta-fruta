@@ -102,6 +102,11 @@ class SubastaViewSet(viewsets.ModelViewSet):
             'packing_detalle__packing_tipo__packing_semanal__empresa',
         ).prefetch_related('ofertas', 'ofertas__cliente')
         
+        # Para retrieve y acciones de detalle, no aplicar filtros de exclusión
+        # Esto permite ver el detalle de cualquier subasta, incluso canceladas reemplazadas
+        if self.action in ['retrieve', 'historial_ofertas', 'cancelar']:
+            return queryset
+        
         # Filtro por búsqueda de texto
         search = self.request.query_params.get('search', None)
         # Nota: SearchFilter ya maneja el parámetro 'search' automáticamente
@@ -111,6 +116,32 @@ class SubastaViewSet(viewsets.ModelViewSet):
         estado = self.request.query_params.get('estado', None)
         if estado:
             queryset = queryset.filter(estado=estado)
+            # Si filtra por CANCELADA, mostrar TODAS (incluyendo reemplazadas)
+            # Si filtra por otro estado, no necesita excluir canceladas reemplazadas
+        else:
+            # Por defecto: excluir canceladas que fueron reemplazadas
+            # (canceladas cuyos packing_detalle tienen otra subasta no cancelada)
+            from django.db.models import Exists, OuterRef
+            
+            # Subquery: existe otra subasta NO cancelada para el mismo packing_detalle
+            tiene_reemplazo = Subasta.objects.filter(
+                packing_detalle=OuterRef('packing_detalle')
+            ).exclude(
+                estado='CANCELADA'
+            ).exclude(
+                id=OuterRef('id')
+            )
+            
+            # Excluir canceladas que tienen reemplazo
+            queryset = queryset.exclude(
+                estado='CANCELADA',
+                pk__in=Subasta.objects.annotate(
+                    tiene_reemplazo=Exists(tiene_reemplazo)
+                ).filter(
+                    estado='CANCELADA',
+                    tiene_reemplazo=True
+                ).values('pk')
+            )
         
         # Filtro por empresa
         empresa_id = self.request.query_params.get('empresa', None)
@@ -164,7 +195,7 @@ class SubastaViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def cancelar(self, request, pk=None):
-        """Cancelar una subasta."""
+        """Cancelar una subasta con información de impacto."""
         subasta = self.get_object()
         
         if subasta.estado == 'CANCELADA':
@@ -179,11 +210,19 @@ class SubastaViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
+        # Contar participantes afectados antes de cancelar
+        total_ofertas = subasta.ofertas.count()
+        participantes = subasta.ofertas.values('cliente').distinct().count()
+        
         subasta.estado = 'CANCELADA'
         subasta.save()
         
         serializer = SubastaDetailSerializer(subasta, context={'request': request})
-        return Response(serializer.data)
+        return Response({
+            **serializer.data,
+            'participantes_afectados': participantes,
+            'total_ofertas_canceladas': total_ofertas
+        })
     
     @action(detail=True, methods=['get'])
     def historial_ofertas(self, request, pk=None):
@@ -201,6 +240,8 @@ class SubastaViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def resumen(self, request):
         """Resumen de subastas por estado."""
+        from django.db.models import Exists, OuterRef
+        
         ahora = timezone.now()
         
         # Calcular estados en tiempo real
@@ -217,6 +258,7 @@ class SubastaViewSet(viewsets.ModelViewSet):
             fecha_hora_fin__lt=ahora
         ).exclude(estado='CANCELADA').count()
         
+        # Canceladas: contar todas las subastas con estado CANCELADA
         canceladas = Subasta.objects.filter(estado='CANCELADA').count()
         
         return Response({

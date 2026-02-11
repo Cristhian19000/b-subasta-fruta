@@ -27,10 +27,12 @@ class Subasta(models.Model):
     ]
     
     # Relación con la producción diaria (PackingDetalle)
-    packing_detalle = models.OneToOneField(
+    # Cambiado de OneToOne a ForeignKey para permitir múltiples subastas
+    # cuando una anterior fue cancelada (mantener historial)
+    packing_detalle = models.ForeignKey(
         'modulo_packing.PackingDetalle',
         on_delete=models.PROTECT,
-        related_name='subasta',
+        related_name='subastas',
         verbose_name="Producción Diaria"
     )
     
