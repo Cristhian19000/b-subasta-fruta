@@ -73,29 +73,23 @@ class SubastaViewSet(viewsets.ModelViewSet):
         Si tiene 'packing.create_auction', automáticamente tiene permisos de crear, ver y editar.
         Si tiene 'view_detail', automáticamente puede ver el historial de ofertas.
         """
-        # Llamar a la verificación estándar primero
-        try:
-            super().check_permissions(request)
-            return  # Si pasa, no hacer nada más
-        except Exception:
-            pass  # Si falla, intentar con permisos alternativos de packing
-        
-        # Verificación alternativa: si tiene create_auction, puede crear, ver y editar
+        action = getattr(self, 'action', None)
         from usuarios.permissions import tiene_permiso
         
-        action = getattr(self, 'action', None)
+        # 1. Verificaciones alternativas (silenciosas) antes de la estándar
         
-        # Si tiene create_auction de packing, puede crear, ver y editar
+        # Si tiene create_auction de packing, tiene control total sobre estas acciones
         if tiene_permiso(request.user, 'packing', 'create_auction'):
-            if action in ['create', 'retrieve', 'update', 'partial_update']:
-                return  # Permitir estas acciones
+            if action in ['create', 'retrieve', 'update', 'partial_update', 'historial_ofertas', 'cancelar']:
+                return  # Permitir sin log diario de error
         
-        # Si tiene view_detail, puede ver el historial de ofertas
+        # Si tiene view_detail, puede ver el historial de ofertas de forma inherente
         if action == 'historial_ofertas':
-            if tiene_permiso(request.user, 'subastas', 'view_detail') or tiene_permiso(request.user, 'packing', 'create_auction'):
-                return  # Permitir ver ofertas si puede ver detalles
-        
-        # Si no tiene permiso desde packing, llamar a super para que maneje el error
+            if tiene_permiso(request.user, 'subastas', 'view_detail'):
+                return  # Permitir silenciosamente
+
+        # 2. Si no pasó las excepciones, ejecutar la verificación estándar de RBACPermission
+        # Esto lanzará el error (y el log DENEGADO) solo si realmente no tiene acceso por ninguna vía
         super().check_permissions(request)
     
     def get_queryset(self):

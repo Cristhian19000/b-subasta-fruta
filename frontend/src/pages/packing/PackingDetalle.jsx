@@ -818,7 +818,7 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-gray-50 p-4 rounded-lg">
                 <h4 className="text-sm font-semibold text-gray-700 mb-3">
-                  ⏰ Horarios
+                  Horarios
                 </h4>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
@@ -871,7 +871,7 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
 
               <div className="bg-green-50 p-4 rounded-lg">
                 <h4 className="text-sm font-semibold text-gray-700 mb-3">
-                  💰 Precios
+                  Precios
                 </h4>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
@@ -906,7 +906,7 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
             {subastaSeleccionada.cliente_ganando && (
               <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
                 <h4 className="text-sm font-semibold text-yellow-800 mb-2">
-                  🏆 Oferta Ganadora Actual
+                  Oferta Ganadora Actual
                 </h4>
                 <div className="flex justify-between items-center">
                   <span className="text-yellow-700">

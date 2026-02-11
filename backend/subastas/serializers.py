@@ -158,6 +158,7 @@ class SubastaDetailSerializer(serializers.ModelSerializer):
     # Información del packing semanal
     packing_semanal_id = serializers.IntegerField(source='packing_semanal.id', read_only=True)
     semana = serializers.SerializerMethodField()
+    ahora_servidor = serializers.SerializerMethodField()
     
     class Meta:
         model = Subasta
@@ -183,6 +184,7 @@ class SubastaDetailSerializer(serializers.ModelSerializer):
             'imagenes',
             'fecha_creacion',
             'fecha_actualizacion',
+            'ahora_servidor',
         ]
     
     def get_imagenes(self, obj):
@@ -199,6 +201,10 @@ class SubastaDetailSerializer(serializers.ModelSerializer):
             'fecha_fin': ps.fecha_fin_semana,
             'estado': ps.estado
         }
+
+    def get_ahora_servidor(self, obj):
+        """Retorna la hora actual del servidor en formato ISO."""
+        return timezone.now()
 
 
 class SubastaCreateSerializer(serializers.ModelSerializer):
@@ -309,6 +315,7 @@ class SubastaMovilListSerializer(serializers.ModelSerializer):
     mi_ultima_puja = serializers.SerializerMethodField()
     estoy_participando = serializers.SerializerMethodField()
     estoy_ganando = serializers.SerializerMethodField()
+    ahora_servidor_ms = serializers.SerializerMethodField()
     
     class Meta:
         model = Subasta
@@ -332,6 +339,7 @@ class SubastaMovilListSerializer(serializers.ModelSerializer):
             'mi_ultima_puja',
             'estoy_participando',
             'estoy_ganando',
+            'ahora_servidor_ms',
         ]
     
     def get_producto(self, obj):
@@ -392,7 +400,11 @@ class SubastaMovilListSerializer(serializers.ModelSerializer):
     def get_hora_fin_ms(self, obj):
         """Timestamp de fin en milisegundos UTC (para cronómetro)."""
         return int(obj.fecha_hora_fin.timestamp() * 1000)
-    
+
+    def get_ahora_servidor_ms(self, obj):
+        """Timestamp actual del servidor en milisegundos para sincronización móvil."""
+        return int(timezone.now().timestamp() * 1000)
+
     def get_estado(self, obj):
         """Estado en minúsculas como espera la app."""
         estado = obj.estado_calculado
@@ -456,6 +468,7 @@ class SubastaMovilDetailSerializer(serializers.ModelSerializer):
     total_pujas = serializers.SerializerMethodField()
     ultima_puja = serializers.SerializerMethodField()
     mi_ultima_puja = serializers.SerializerMethodField()
+    ahora_servidor_ms = serializers.SerializerMethodField()
     
     class Meta:
         model = Subasta
@@ -478,6 +491,7 @@ class SubastaMovilDetailSerializer(serializers.ModelSerializer):
             'total_pujas',
             'ultima_puja',
             'mi_ultima_puja',
+            'ahora_servidor_ms',
         ]
     
     def get_producto(self, obj):
@@ -533,6 +547,10 @@ class SubastaMovilDetailSerializer(serializers.ModelSerializer):
     def get_hora_fin_ms(self, obj):
         """Timestamp de fin en milisegundos UTC (para cronómetro)."""
         return int(obj.fecha_hora_fin.timestamp() * 1000)
+
+    def get_ahora_servidor_ms(self, obj):
+        """Timestamp actual del servidor en milisegundos para sincronización móvil."""
+        return int(timezone.now().timestamp() * 1000)
     
     def get_estado(self, obj):
         return obj.estado_calculado.lower()

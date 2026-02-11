@@ -23,6 +23,7 @@ const SubastaDetalle = ({ subasta: initialSubasta, onClose, onUpdate }) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [tiempoRestante, setTiempoRestante] = useState(0);
+    const [serverOffset, setServerOffset] = useState(0); // Diferencia entre server y local
 
     // Cargar detalle completo
     useEffect(() => {
@@ -36,7 +37,22 @@ const SubastaDetalle = ({ subasta: initialSubasta, onClose, onUpdate }) => {
 
                 setSubasta(detalleRes.data);
                 setHistorial(historialRes.data.historial || []);
-                setTiempoRestante(detalleRes.data.tiempo_restante || 0);
+
+                // Calcular offset del servidor
+                if (detalleRes.data.ahora_servidor) {
+                    const serverTime = new Date(detalleRes.data.ahora_servidor).getTime();
+                    const localTime = new Date().getTime();
+                    setServerOffset(serverTime - localTime);
+                }
+
+                // Cálculo inicial del tiempo restante
+                if (detalleRes.data.fecha_hora_fin) {
+                    const fin = new Date(detalleRes.data.fecha_hora_fin).getTime();
+                    const ahora = detalleRes.data.ahora_servidor
+                        ? new Date(detalleRes.data.ahora_servidor).getTime()
+                        : new Date().getTime();
+                    setTiempoRestante(Math.max(0, Math.floor((fin - ahora) / 1000)));
+                }
             } catch (err) {
                 console.error('Error cargando detalle:', err);
                 setError('Error al cargar el detalle de la subasta');
@@ -50,14 +66,49 @@ const SubastaDetalle = ({ subasta: initialSubasta, onClose, onUpdate }) => {
 
     // Actualizar tiempo restante cada segundo si está activa
     useEffect(() => {
-        if (subasta?.estado_actual !== 'ACTIVA') return;
+        if (subasta?.estado_actual !== 'ACTIVA' || !subasta?.fecha_hora_fin) return;
 
         const interval = setInterval(() => {
-            setTiempoRestante((prev) => Math.max(0, prev - 1));
+            const fin = new Date(subasta.fecha_hora_fin).getTime();
+            const ahoraLocal = new Date().getTime();
+            const ahoraSincronizado = ahoraLocal + serverOffset;
+
+            const segundos = Math.max(0, Math.floor((fin - ahoraSincronizado) / 1000));
+            setTiempoRestante(segundos);
+
+            // Si llega a cero, refrescar datos para cambiar estado
+            if (segundos === 0 && subasta.estado_actual === 'ACTIVA') {
+                // Pequeño delay para asegurar que el server ya procesó el cierre
+                setTimeout(() => window.location.reload(), 2000);
+            }
         }, 1000);
 
         return () => clearInterval(interval);
-    }, [subasta?.estado_actual]);
+    }, [subasta?.estado_actual, subasta?.fecha_hora_fin, serverOffset]);
+
+    // Re-sincronizar con el servidor periódicamente (cada 30 segundos)
+    useEffect(() => {
+        if (subasta?.estado_actual !== 'ACTIVA') return;
+
+        const syncInterval = setInterval(async () => {
+            try {
+                const res = await getSubasta(subasta.id);
+                if (res.data.ahora_servidor) {
+                    const serverTime = new Date(res.data.ahora_servidor).getTime();
+                    const localTime = new Date().getTime();
+                    setServerOffset(serverTime - localTime);
+                }
+                // Actualizar historial si hay cambios (precio, etc)
+                const histRes = await getHistorialOfertas(subasta.id);
+                setHistorial(histRes.data.historial || []);
+                setSubasta(res.data);
+            } catch (e) {
+                console.error("Error en re-sincronización:", e);
+            }
+        }, 30000);
+
+        return () => clearInterval(syncInterval);
+    }, [subasta?.id, subasta?.estado_actual]);
 
     // Formatters
     const formatDateTime = (dateStr) => {
