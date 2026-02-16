@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.db.models import Count
+from django.db.models.deletion import ProtectedError
 from usuarios.permissions import RBACPermission, requiere_permiso
 
 from .models import Empresa, TipoFruta, PackingSemanal, PackingTipo, PackingDetalle, PackingImagen
@@ -161,6 +162,70 @@ class PackingSemanalViewSet(viewsets.ModelViewSet):
         # Devolver los datos completos del packing actualizado
         output_serializer = PackingSemanalDetailSerializer(instance)
         return Response(output_serializer.data)
+    
+    def destroy(self, request, *args, **kwargs):
+        """
+        Eliminar un packing semanal.
+        
+        Verifica primero si hay subastas asociadas y devuelve un error amigable.
+        - Si hay subastas activas (no canceladas), se impide la eliminación.
+        - Si solo hay subastas canceladas, requiere confirmación (?confirm=true).
+        """
+        instance = self.get_object()
+        confirm = request.query_params.get('confirm', '').lower() == 'true'
+        
+        # Verificar si hay subastas asociadas a este packing
+        from subastas.models import Subasta
+        subastas_qs = Subasta.objects.filter(
+            packing_detalle__packing_tipo__packing_semanal=instance
+        )
+        
+        # Contar subastas activas (no canceladas) y canceladas por separado
+        subastas_activas = subastas_qs.exclude(estado='CANCELADA')
+        subastas_canceladas = subastas_qs.filter(estado='CANCELADA')
+        
+        activas_count = subastas_activas.count()
+        canceladas_count = subastas_canceladas.count()
+        
+        if activas_count > 0:
+            # Hay subastas no canceladas - no permitir eliminación
+            return Response(
+                {
+                    'error': f'No se puede eliminar este packing porque tiene {activas_count} subasta(s) activa(s).',
+                    'detail': 'Primero debe cancelar o eliminar las subastas no canceladas antes de eliminar el packing.',
+                    'subastas_activas': activas_count,
+                    'subastas_canceladas': canceladas_count
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Si hay subastas canceladas y no se ha confirmado, pedir confirmación
+        if canceladas_count > 0 and not confirm:
+            return Response(
+                {
+                    'requires_confirmation': True,
+                    'subastas_canceladas': canceladas_count,
+                    'message': f'Este packing tiene {canceladas_count} subasta(s) cancelada(s). ¿Desea eliminarlo de todas formas?'
+                },
+                status=status.HTTP_409_CONFLICT
+            )
+        
+        try:
+            # Si hay subastas canceladas y se confirmó, eliminarlas primero
+            if canceladas_count > 0:
+                subastas_canceladas.delete()
+            
+            self.perform_destroy(instance)
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except ProtectedError as e:
+            # Capturar cualquier otro error de protección no anticipado
+            return Response(
+                {
+                    'error': 'No se puede eliminar este packing porque tiene datos relacionados que lo protegen.',
+                    'detail': str(e)
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
     
     @action(detail=True, methods=['post'])
     def cambiar_estado(self, request, pk=None):

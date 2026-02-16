@@ -266,16 +266,24 @@ class PackingSemanalCreateSerializer(serializers.Serializer):
                 'fecha_fin_semana': 'La fecha de fin debe ser posterior a la fecha de inicio'
             })
         
-        # Validar unicidad (empresa + fecha_inicio)
+        # Validar que no haya solapamiento de fechas con otro packing de la misma empresa
+        # Un solapamiento ocurre cuando:
+        # - El nuevo rango empieza antes de que termine el existente Y
+        # - El nuevo rango termina después de que empiece el existente
         instance = getattr(self, 'instance', None)
-        queryset = PackingSemanal.objects.filter(empresa=empresa, fecha_inicio_semana=fecha_inicio)
+        queryset = PackingSemanal.objects.filter(
+            empresa=empresa,
+            fecha_inicio_semana__lte=fecha_fin,  # El existente empieza antes de que termine el nuevo
+            fecha_fin_semana__gte=fecha_inicio   # El existente termina después de que empiece el nuevo
+        )
         
         if instance:
             queryset = queryset.exclude(pk=instance.pk)
         
-        if queryset.exists():
+        packing_conflicto = queryset.first()
+        if packing_conflicto:
             raise serializers.ValidationError({
-                'fecha_inicio_semana': f'Ya existe un packing para {empresa.nombre} en la semana del {fecha_inicio}'
+                'fecha_inicio_semana': f'Ya existe un packing para {empresa.nombre} que se solapa con estas fechas ({packing_conflicto.fecha_inicio_semana.strftime("%d/%m/%Y")} - {packing_conflicto.fecha_fin_semana.strftime("%d/%m/%Y")})'
             })
         
         return data

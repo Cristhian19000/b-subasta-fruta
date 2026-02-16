@@ -194,16 +194,41 @@ const Packing = () => {
         }
     };
 
-    const handleDelete = async (id) => {
-        if (!window.confirm('¿Está seguro de eliminar este packing?')) return;
+    const handleDelete = async (id, confirmed = false) => {
+        if (!confirmed && !window.confirm('¿Está seguro de eliminar este packing?')) return;
 
         try {
-            await api.delete(`/packing-semanal/${id}/`);
+            const url = confirmed ? `/packing-semanal/${id}/?confirm=true` : `/packing-semanal/${id}/`;
+            await api.delete(url);
             setSuccess('Packing eliminado correctamente');
             fetchPackings();
             setTimeout(() => setSuccess(''), 3000);
         } catch (err) {
-            setError('Error al eliminar el packing');
+            const errorData = err.response?.data;
+            
+            // Si requiere confirmación porque hay subastas canceladas
+            if (err.response?.status === 409 && errorData?.requires_confirmation) {
+                const canceladas = errorData.subastas_canceladas;
+                const confirmar = window.confirm(
+                    `Este packing tiene ${canceladas} subasta(s) cancelada(s).\n\n` +
+                    `¿Está seguro de que desea eliminarlo de todas formas?\n\n` +
+                    `Se eliminarán también las subastas canceladas asociadas.`
+                );
+                if (confirmar) {
+                    // Reintentar con confirmación
+                    handleDelete(id, true);
+                }
+                return;
+            }
+            
+            if (errorData?.error) {
+                // Error con mensaje personalizado del backend
+                setError(errorData.error);
+            } else if (errorData?.detail) {
+                setError(errorData.detail);
+            } else {
+                setError('Error al eliminar el packing');
+            }
         }
     };
 
