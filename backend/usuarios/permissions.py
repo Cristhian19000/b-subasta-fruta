@@ -191,10 +191,14 @@ class RBACPermission(BasePermission):
             return True
             
         # 8. Verificación final: permitir si tiene permiso en CUALQUIERA de los módulos definidos
+        # Convertir permiso a lista si es string para manejarlo uniformemente
+        permisos_requeridos = permiso if isinstance(permiso, list) else [permiso]
+        
         for modulo in modulos:
-            # A. Intentar con el permiso específico mapeado
-            if tiene_permiso(request.user, modulo, permiso):
-                return True
+            # A. Intentar con el permiso específico mapeado (si es lista, basta con tener uno)
+            for perm in permisos_requeridos:
+                if tiene_permiso(request.user, modulo, perm):
+                    return True
             
             # B. Fallback para acciones de lectura: si tienes 'view_list' en el módulo,
             # puedes ejecutar acciones de visualización básica (list/retrieve).

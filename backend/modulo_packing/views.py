@@ -271,9 +271,9 @@ class PackingImagenViewSet(viewsets.ModelViewSet):
     permisos_mapping = {
         'list': 'view_detail',
         'retrieve': 'view_detail',
-        'create': 'update',
+        'create': ['create', 'update'],  # Permite subir imágenes con permiso create o update
         'destroy': 'update',
-        'subir_multiple': 'update',
+        'subir_multiple': ['create', 'update'],  # Permite subir múltiples imágenes con permiso create o update
     }
     parser_classes = [MultiPartParser, FormParser, JSONParser]
     
