@@ -21,6 +21,14 @@ const Login = () => {
         setLoading(true);
 
         try {
+            // Validaciones básicas del lado del cliente
+            if (!username.trim()) {
+                throw new Error('Por favor, ingrese su usuario.');
+            }
+            if (!password.trim()) {
+                throw new Error('Por favor, ingrese su contraseña.');
+            }
+
             await login(username, password);
 
             // Obtener datos del usuario para determinar la mejor ruta
@@ -29,7 +37,11 @@ const Login = () => {
 
             navigate(firstRoute);
         } catch (err) {
-            setError(err.response?.data?.error || 'Error al iniciar sesión');
+            // Mostrar el mensaje de error
+            setError(err.message || 'Error al iniciar sesión. Por favor, intente nuevamente.');
+
+            // Limpiar la contraseña en caso de error
+            setPassword('');
         } finally {
             setLoading(false);
         }

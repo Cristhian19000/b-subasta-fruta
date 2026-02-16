@@ -28,21 +28,17 @@ def tiene_permiso(usuario, modulo, permiso):
     perfil = getattr(usuario, 'perfil', None)
     if not perfil:
         return False
-        
-    # 3. Administradores del sistema tienen acceso total
-    if perfil.es_administrador:
-        return True
     
-    # 4. Verificar si tiene perfil de permisos asignado
+    # 3. Verificar si tiene perfil de permisos asignado
     perfil_permiso = perfil.perfil_permiso
     if not perfil_permiso or not perfil_permiso.activo:
         return False
     
-    # 5. Perfil marcado como superusuario = acceso total
+    # 4. Perfil marcado como superusuario = acceso total
     if perfil_permiso.es_superusuario:
         return True
     
-    # 6. Verificar permiso específico en el módulo (soporta formato lista o diccionario)
+    # 5. Verificar permiso específico en el módulo (soporta formato lista o diccionario)
     permisos_json = perfil_permiso.permisos or {}
     permisos_modulo = permisos_json.get(modulo, [])
     
@@ -56,7 +52,7 @@ def tiene_permiso(usuario, modulo, permiso):
             return perm in permisos_modulo
         return False
     
-    # 7. LÓGICA JERÁRQUICA: manage_* implica view_*
+    # 6. LÓGICA JERÁRQUICA: manage_* implica view_*
     # Si tiene permiso directo, permitir
     if _tiene_permiso_directo(permiso):
         return True
@@ -108,7 +104,7 @@ class TienePermisoModulo(BasePermission):
             return True
         
         perfil = getattr(request.user, 'perfil', None)
-        if perfil and perfil.es_administrador:
+        if perfil and perfil.perfil_permiso and perfil.perfil_permiso.es_superusuario:
             return True
             
         if not perfil or not perfil.perfil_permiso:
@@ -121,7 +117,7 @@ class TienePermisoModulo(BasePermission):
 
 class SoloAdministradores(BasePermission):
     """
-    Solo permite acceso a administradores.
+    Solo permite acceso a administradores (superusuarios o perfiles con es_superusuario).
     """
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
@@ -129,7 +125,9 @@ class SoloAdministradores(BasePermission):
         if request.user.is_superuser:
             return True
         perfil = getattr(request.user, 'perfil', None)
-        return perfil.es_administrador if perfil else False
+        if perfil and perfil.perfil_permiso and perfil.perfil_permiso.es_superusuario:
+            return True
+        return False
 
 
 class RBACPermission(BasePermission):
@@ -159,13 +157,13 @@ class RBACPermission(BasePermission):
         # 3. Superusuario de Django tiene acceso total
         if request.user.is_superuser:
             return True
-            
-        # 3. Administradores del sistema tienen acceso total
+        
+        # 4. Verificar si es administrador vía perfil de permisos
         perfil = getattr(request.user, 'perfil', None)
-        if perfil and perfil.es_administrador:
+        if perfil and perfil.perfil_permiso and perfil.perfil_permiso.es_superusuario:
             return True
             
-        # 4. Obtener el módulo desde el view
+        # 5. Obtener el módulo desde el view
         modulos = getattr(view, 'modulo_permiso', None)
         if not modulos:
             # Si el ViewSet no define módulo, denegamos por seguridad (excepto para superusers)

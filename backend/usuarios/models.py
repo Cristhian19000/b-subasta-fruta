@@ -87,8 +87,8 @@ class PerfilUsuario(models.Model):
     
     Atributos:
         - user: Relación con el modelo User de Django
-        - es_administrador: Indica si el usuario es administrador
-        - telefono: Número de teléfono del usuario
+        - dni: Documento Nacional de Identidad
+        - perfil_permiso: Perfil de permisos asignado
         - fecha_creacion: Fecha de creación del perfil
     """
     
@@ -99,18 +99,12 @@ class PerfilUsuario(models.Model):
         verbose_name='Usuario'
     )
     
-    # Indica si el usuario tiene permisos de administrador
-    es_administrador = models.BooleanField(
-        default=False,
-        verbose_name='Es Administrador'
-    )
-    
-    # Teléfono de contacto del usuario
-    telefono = models.CharField(
+    # DNI del usuario
+    dni = models.CharField(
         max_length=20,
         blank=True,
         null=True,
-        verbose_name='Teléfono'
+        verbose_name='DNI'
     )
     
     # Perfil de permisos asignado
@@ -131,13 +125,15 @@ class PerfilUsuario(models.Model):
     
     @property
     def es_admin(self):
-        """Alias para es_administrador para compatibilidad."""
-        return self.es_administrador
+        """Verifica si el usuario tiene acceso total vía perfil de permisos."""
+        if self.perfil_permiso and self.perfil_permiso.es_superusuario:
+            return True
+        return False
     
     class Meta:
         verbose_name = 'Perfil de Usuario'
         verbose_name_plural = 'Perfiles de Usuario'
     
     def __str__(self):
-        rol = 'Administrador' if self.es_administrador else 'Trabajador'
-        return f"{self.user.username} - {rol}"
+        perfil_nombre = self.perfil_permiso.nombre if self.perfil_permiso else 'Sin perfil'
+        return f"{self.user.username} - {perfil_nombre}"

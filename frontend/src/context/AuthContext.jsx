@@ -63,10 +63,33 @@ export const AuthProvider = ({ children }) => {
             localStorage.setItem('user', JSON.stringify(userData));
 
             setUser(userData);
-            return { success: true };
         } catch (error) {
-            const message = error.response?.data?.error || 'Error al iniciar sesión';
-            return { success: false, error: message };
+            // Manejo de errores específicos
+            if (!error.response) {
+                // Error de red (sin respuesta del servidor)
+                throw new Error('No se pudo conectar con el servidor. Verifique su conexión a internet.');
+            }
+
+            const status = error.response.status;
+            const data = error.response.data;
+
+            // Errores HTTP específicos
+            if (status === 401) {
+                // Credenciales inválidas
+                throw new Error(data?.error || data?.detail || 'Usuario o contraseña incorrectos.');
+            } else if (status === 403) {
+                // Cuenta bloqueada o sin permisos
+                throw new Error(data?.error || data?.detail || 'Cuenta bloqueada o sin acceso.');
+            } else if (status === 429) {
+                // Demasiados intentos
+                throw new Error('Demasiados intentos de inicio de sesión. Intente más tarde.');
+            } else if (status >= 500) {
+                // Error del servidor
+                throw new Error('Error en el servidor. Por favor, intente más tarde.');
+            } else {
+                // Otros errores
+                throw new Error(data?.error || data?.detail || 'Error al iniciar sesión. Intente nuevamente.');
+            }
         }
     };
 
@@ -85,9 +108,9 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    // Verificar si es administrador
+    // Verificar si es administrador (superuser de Django o perfil con es_superusuario)
     const isAdmin = () => {
-        return user?.is_superuser || user?.es_administrador;
+        return user?.is_superuser || user?.perfil_permiso?.es_superusuario;
     };
 
     const value = {

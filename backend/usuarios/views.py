@@ -44,18 +44,28 @@ def login_view(request):
     username = serializer.validated_data['username']
     password = serializer.validated_data['password']
     
-    # Autenticar usuario
-    user = authenticate(username=username, password=password)
-    
-    if user is None:
+    # Verificar si el usuario existe primero
+    try:
+        user = User.objects.get(username=username)
+        
+        # Verificar si el usuario está activo
+        if not user.is_active:
+            return Response(
+                {'error': 'Esta cuenta ha sido desactivada. Contacte al administrador del sistema.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Verificar la contraseña
+        if not user.check_password(password):
+            return Response(
+                {'error': 'Usuario o contraseña incorrectos.'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+            
+    except User.DoesNotExist:
+        # Usuario no existe - usar el mismo mensaje que contraseña incorrecta por seguridad
         return Response(
-            {'error': 'Credenciales inválidas'},
-            status=status.HTTP_401_UNAUTHORIZED
-        )
-    
-    if not user.is_active:
-        return Response(
-            {'error': 'Usuario desactivado'},
+            {'error': 'Usuario o contraseña incorrectos.'},
             status=status.HTTP_401_UNAUTHORIZED
         )
     

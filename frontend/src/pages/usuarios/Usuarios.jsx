@@ -11,13 +11,11 @@ import UsuarioForm from './UsuarioForm';
 
 const initialFormData = {
     username: '',
-    email: '',
     first_name: '',
     last_name: '',
     password: '',
-    es_administrador: false,
-    telefono: '',
-    perfil_permiso_id: '', // Nuevo campo
+    dni: '',
+    perfil_permiso_id: '',
 };
 
 const Usuarios = () => {
@@ -80,13 +78,11 @@ const Usuarios = () => {
             const user = response.data;
             setFormData({
                 username: user.username,
-                email: user.email,
                 first_name: user.first_name,
                 last_name: user.last_name,
                 password: '',
-                es_administrador: user.perfil?.es_administrador || false,
-                telefono: user.perfil?.telefono || '',
-                perfil_permiso_id: user.perfil?.perfil_permiso?.id || '', // Nuevo
+                dni: user.perfil?.dni || '',
+                perfil_permiso_id: user.perfil?.perfil_permiso?.id || '',
             });
             setSelectedUsuario(user);
             setModalMode('edit');
@@ -171,7 +167,7 @@ const Usuarios = () => {
 
     const filteredUsuarios = usuarios.filter(usuario =>
         usuario.username?.toLowerCase().includes(search.toLowerCase()) ||
-        usuario.email?.toLowerCase().includes(search.toLowerCase()) ||
+        usuario.dni?.toLowerCase().includes(search.toLowerCase()) ||
         usuario.first_name?.toLowerCase().includes(search.toLowerCase()) ||
         usuario.last_name?.toLowerCase().includes(search.toLowerCase())
     );
@@ -201,7 +197,7 @@ const Usuarios = () => {
             <div className="mb-6">
                 <input
                     type="text"
-                    placeholder="Buscar por usuario, email o nombre..."
+                    placeholder="Buscar por usuario, nombre o DNI..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     className="w-full max-w-md px-4 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-gray-900 focus:border-gray-900"
@@ -227,7 +223,7 @@ const Usuarios = () => {
                                     Nombre
                                 </th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Email
+                                    DNI
                                 </th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Perfil
@@ -250,12 +246,10 @@ const Usuarios = () => {
                                         {`${usuario.first_name || ''} ${usuario.last_name || ''}`.trim() || '-'}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {usuario.email || '-'}
+                                        {usuario.dni || '-'}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
-                                        {usuario.es_administrador ? (
-                                            <Badge variant="purple">Administrador</Badge>
-                                        ) : usuario.perfil_permiso ? (
+                                        {usuario.perfil_permiso ? (
                                             <div className="text-sm">
                                                 <div className="text-gray-900 font-medium">
                                                     {usuario.perfil_permiso.nombre}

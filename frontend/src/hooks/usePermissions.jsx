@@ -28,9 +28,6 @@ export const usePermissions = () => {
         // Superusuario de Django tiene acceso total
         if (user.is_superuser) return true;
 
-        // Administradores tienen acceso total
-        if (user.es_administrador) return true;
-
         // Verificar perfil de permisos
         if (!user.perfil_permiso) return false;
 
@@ -58,7 +55,7 @@ export const usePermissions = () => {
      */
     const hasModuleAccess = (modulo) => {
         if (!user) return false;
-        if (user.is_superuser || user.es_administrador) return true;
+        if (user.is_superuser) return true;
         if (!user.perfil_permiso) return false;
         if (user.perfil_permiso.es_superusuario) return true;
 
@@ -75,7 +72,7 @@ export const usePermissions = () => {
      */
     const isAdmin = () => {
         if (!user) return false;
-        return user.is_superuser || user.es_administrador;
+        return user.is_superuser || user.perfil_permiso?.es_superusuario;
     };
 
     return {

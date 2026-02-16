@@ -8,8 +8,8 @@
  * @returns {string} - Ruta a la que redirigir
  */
 export const getFirstAvailableRoute = (user) => {
-    // Superusuarios y admins siempre van al dashboard
-    if (user?.is_superuser || user?.es_administrador) {
+    // Superusuarios y admins (perfil con es_superusuario) siempre van al dashboard
+    if (user?.is_superuser || user?.perfil_permiso?.es_superusuario) {
         return '/dashboard';
     }
 
