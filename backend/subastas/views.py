@@ -29,6 +29,7 @@ from .serializers import (
     PujaMovilSerializer,
     HistorialPujaSerializer,
 )
+from .websocket_service import SubastaWebSocketService
 
 
 class SubastaViewSet(viewsets.ModelViewSet):
@@ -189,6 +190,9 @@ class SubastaViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         instance = serializer.save()
         
+        # Notificar por WebSocket
+        SubastaWebSocketService.notificar_subasta_creada(instance)
+        
         # Devolver los datos completos
         output_serializer = SubastaDetailSerializer(instance, context={'request': request})
         return Response(output_serializer.data, status=status.HTTP_201_CREATED)
@@ -217,6 +221,13 @@ class SubastaViewSet(viewsets.ModelViewSet):
         subasta.estado = 'CANCELADA'
         subasta.save()
         
+        # Notificar por WebSocket
+        SubastaWebSocketService.notificar_subasta_cancelada(
+            subasta, 
+            participantes_afectados=participantes,
+            total_ofertas=total_ofertas
+        )
+        
         serializer = SubastaDetailSerializer(subasta, context={'request': request})
         return Response({
             **serializer.data,
@@ -236,6 +247,61 @@ class SubastaViewSet(viewsets.ModelViewSet):
             'oferta_ganadora': OfertaSerializer(subasta.oferta_ganadora).data if subasta.oferta_ganadora else None,
             'historial': serializer.data
         })
+    
+    def update(self, request, *args, **kwargs):
+        """Actualizar una subasta con notificación WebSocket."""
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        
+        # Detectar qué campos cambiaron
+        cambios = []
+        for field in serializer.validated_data:
+            old_value = getattr(instance, field, None)
+            new_value = serializer.validated_data.get(field)
+            if old_value != new_value:
+                cambios.append(field)
+        
+        self.perform_update(serializer)
+        
+        # Notificar por WebSocket
+        SubastaWebSocketService.notificar_subasta_actualizada(instance, cambios=cambios)
+        
+        if getattr(instance, '_prefetched_objects_cache', None):
+            instance._prefetched_objects_cache = {}
+        
+        return Response(serializer.data)
+    
+    def partial_update(self, request, *args, **kwargs):
+        """Actualización parcial de una subasta."""
+        kwargs['partial'] = True
+        return self.update(request, *args, **kwargs)
+    
+    def destroy(self, request, *args, **kwargs):
+        """Eliminar una subasta con notificación WebSocket."""
+        instance = self.get_object()
+        
+        # Guardar info antes de eliminar para notificar
+        subasta_id = instance.id
+        tipo_fruta = None
+        empresa = None
+        
+        if instance.tipo_fruta:
+            tipo_fruta = instance.tipo_fruta.nombre
+        if instance.empresa:
+            empresa = instance.empresa.nombre
+        
+        self.perform_destroy(instance)
+        
+        # Notificar por WebSocket
+        SubastaWebSocketService.notificar_subasta_eliminada(
+            subasta_id,
+            tipo_fruta=tipo_fruta,
+            empresa=empresa
+        )
+        
+        return Response(status=status.HTTP_204_NO_CONTENT)
     
     @action(detail=False, methods=['get'])
     def resumen(self, request):
@@ -269,31 +335,53 @@ class SubastaViewSet(viewsets.ModelViewSet):
             'total': programadas + activas + finalizadas + canceladas
         })
     
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=['get', 'post'])
     def actualizar_estados(self, request):
         """
         Actualiza los estados de las subastas basándose en las fechas.
         Este endpoint puede llamarse periódicamente o mediante un cron job.
+        También envía notificaciones WebSocket cuando hay cambios.
         """
         ahora = timezone.now()
-        actualizados = 0
+        activadas = 0
+        finalizadas = 0
         
         # Subastas que deben pasar a ACTIVA
         subastas_activar = Subasta.objects.filter(
             estado='PROGRAMADA',
             fecha_hora_inicio__lte=ahora,
             fecha_hora_fin__gte=ahora
+        ).select_related(
+            'packing_detalle__packing_tipo__tipo_fruta',
+            'packing_detalle__packing_tipo__packing_semanal__empresa'
         )
-        actualizados += subastas_activar.update(estado='ACTIVA')
+        
+        for subasta in subastas_activar:
+            subasta.estado = 'ACTIVA'
+            subasta.save(update_fields=['estado'])
+            # Notificar por WebSocket
+            SubastaWebSocketService.notificar_subasta_iniciada(subasta)
+            activadas += 1
         
         # Subastas que deben pasar a FINALIZADA
         subastas_finalizar = Subasta.objects.filter(
             fecha_hora_fin__lt=ahora
-        ).exclude(estado__in=['FINALIZADA', 'CANCELADA'])
-        actualizados += subastas_finalizar.update(estado='FINALIZADA')
+        ).exclude(estado__in=['FINALIZADA', 'CANCELADA']).select_related(
+            'packing_detalle__packing_tipo__tipo_fruta',
+            'packing_detalle__packing_tipo__packing_semanal__empresa'
+        ).prefetch_related('ofertas__cliente')
+        
+        for subasta in subastas_finalizar:
+            subasta.estado = 'FINALIZADA'
+            subasta.save(update_fields=['estado'])
+            # Notificar por WebSocket
+            SubastaWebSocketService.notificar_subasta_finalizada(subasta)
+            finalizadas += 1
         
         return Response({
-            'mensaje': f'Se actualizaron {actualizados} subastas.',
+            'mensaje': f'Se actualizaron {activadas + finalizadas} subastas.',
+            'activadas': activadas,
+            'finalizadas': finalizadas,
             'timestamp': ahora.isoformat()
         })
 
@@ -355,6 +443,10 @@ class OfertaViewSet(viewsets.ModelViewSet):
         # Bloquear la subasta para control de concurrencia (RN-03)
         subasta = Subasta.objects.select_for_update().get(pk=subasta.pk)
         
+        # Guardar la oferta anterior para notificar al cliente superado
+        oferta_anterior = subasta.oferta_ganadora
+        cliente_superado = oferta_anterior.cliente if oferta_anterior else None
+        
         # Validar nuevamente después del bloqueo
         puede, mensaje = subasta.puede_ofertar(monto)
         if not puede:
@@ -365,6 +457,13 @@ class OfertaViewSet(viewsets.ModelViewSet):
         
         # Crear la oferta
         oferta = serializer.save()
+        
+        # Notificar por WebSocket
+        SubastaWebSocketService.notificar_nueva_puja(
+            subasta, 
+            oferta,
+            cliente_superado=cliente_superado if cliente_superado and cliente_superado != oferta.cliente else None
+        )
         
         output_serializer = OfertaSerializer(oferta)
         return Response(output_serializer.data, status=status.HTTP_201_CREATED)
@@ -508,6 +607,10 @@ class PujaMovilViewSet(viewsets.ViewSet):
             # Bloquear la subasta
             subasta = Subasta.objects.select_for_update().get(pk=subasta_id)
             
+            # Guardar oferta anterior para notificar al superado
+            oferta_anterior = subasta.oferta_ganadora
+            cliente_superado = oferta_anterior.cliente if oferta_anterior else None
+            
             # Validar oferta
             puede, mensaje = subasta.puede_ofertar(monto)
             if not puede:
@@ -524,6 +627,13 @@ class PujaMovilViewSet(viewsets.ViewSet):
                 subasta=subasta,
                 cliente=cliente,
                 monto=monto
+            )
+            
+            # Notificar por WebSocket
+            SubastaWebSocketService.notificar_nueva_puja(
+                subasta,
+                oferta,
+                cliente_superado=cliente_superado if cliente_superado and cliente_superado != cliente else None
             )
         
         return Response({

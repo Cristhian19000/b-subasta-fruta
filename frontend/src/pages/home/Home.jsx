@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import axios from '../../api/axios';
 import { usePermissions } from '../../hooks/usePermissions';
+import { useSubastasContext } from '../../context/SubastasWSContext';
 
 // Componentes del Dashboard
 
@@ -21,6 +22,9 @@ import ReportsQuickWidget from '../../components/dashboard/ReportsQuickWidget';
 
 const Home = () => {
     const { hasPermission, isAdmin } = usePermissions();
+    
+    // Contexto de WebSocket para actualizaciones en tiempo real
+    const { refreshCounter } = useSubastasContext();
 
     // Verificar permisos
     const canViewSummary = isAdmin() || hasPermission('dashboard', 'view_summary');
@@ -99,19 +103,23 @@ const Home = () => {
         }
     }, [periodo, canViewTables]);
 
-    // Efecto 1: Datos Globales (Solo al montar y por intervalo)
+    // Efecto 1: Datos Globales (Solo al montar)
     useEffect(() => {
         fetchGlobalData(true);
-        const timer = setInterval(() => fetchGlobalData(false), 60000);
-        return () => clearInterval(timer);
     }, [fetchGlobalData]);
 
     // Efecto 2: Datos del Top (Dependen del periodo)
     useEffect(() => {
         fetchTopData(true);
-        const timer = setInterval(() => fetchTopData(false), 60000);
-        return () => clearInterval(timer);
     }, [fetchTopData]);
+
+    // Recargar datos automáticamente cuando hay eventos de WebSocket
+    useEffect(() => {
+        if (refreshCounter > 0) {
+            fetchGlobalData(false);
+            fetchTopData(false);
+        }
+    }, [refreshCounter, fetchGlobalData, fetchTopData]);
 
 
 

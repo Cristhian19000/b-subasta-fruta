@@ -34,6 +34,9 @@ ALLOWED_HOSTS = ['10.0.2.2', '127.0.0.1', 'localhost']
 # APLICACIONES INSTALADAS
 # =============================================================================
 INSTALLED_APPS = [
+    # Daphne debe ir primero para ASGI
+    'daphne',                       # Servidor ASGI para WebSockets
+    
     # Aplicaciones de Django por defecto
     'django.contrib.admin',         # Panel de administración
     'django.contrib.auth',          # Sistema de autenticación
@@ -43,6 +46,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',   # Manejo de archivos estáticos
     
     # Aplicaciones de terceros
+    'channels',                     # Django Channels para WebSockets
     'rest_framework',               # Django REST Framework para la API
     'rest_framework_simplejwt',     # JWT para autenticación
     'corsheaders',                  # Manejo de CORS para peticiones del frontend
@@ -190,3 +194,26 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 # =============================================================================
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# =============================================================================
+# CONFIGURACIÓN DE DJANGO CHANNELS (WebSockets)
+# =============================================================================
+ASGI_APPLICATION = 'subasta_frutas.asgi.application'
+
+# Channel Layers - Para desarrollo usamos InMemory
+# En producción, cambiar a Redis
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer"
+    }
+}
+
+# Para producción con Redis (descomentar y configurar):
+# CHANNEL_LAYERS = {
+#     "default": {
+#         "BACKEND": "channels_redis.core.RedisChannelLayer",
+#         "CONFIG": {
+#             "hosts": [("127.0.0.1", 6379)],
+#         },
+#     },
+# }

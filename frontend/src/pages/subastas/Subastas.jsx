@@ -8,8 +8,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Button, Badge, Table, Modal, Input, Select, Alert } from '../../components/common';
-import { getSubastas, getResumenSubastas, actualizarEstadosSubastas, cancelarSubasta, getSubasta } from '../../api/subastas';
+import { getSubastas, getResumenSubastas, cancelarSubasta, getSubasta } from '../../api/subastas';
 import { usePermissions } from '../../hooks/usePermissions';
+import { useSubastasContext } from '../../context/SubastasWSContext';
 import SubastaDetalle from './SubastaDetalle';
 import SubastaForm from './SubastaForm';
 import SubastaEditForm from './SubastaEditForm';
@@ -34,6 +35,9 @@ const ESTADO_LABELS = {
 const Subastas = () => {
     const location = useLocation();
     const { hasPermission, isAdmin } = usePermissions();
+    
+    // Contexto de WebSocket para actualizaciones en tiempo real
+    const { refreshCounter } = useSubastasContext();
 
     // Estados
     const [subastas, setSubastas] = useState([]);
@@ -115,19 +119,12 @@ const Subastas = () => {
         cargarDatos();
     }, [cargarDatos]);
 
-    // Actualizar estados automáticamente cada 30 segundos
+    // Recargar datos automáticamente cuando hay eventos de WebSocket
     useEffect(() => {
-        const interval = setInterval(async () => {
-            try {
-                await actualizarEstadosSubastas();
-                cargarDatos();
-            } catch (err) {
-                console.error('Error actualizando estados:', err);
-            }
-        }, 30000);
-
-        return () => clearInterval(interval);
-    }, [cargarDatos]);
+        if (refreshCounter > 0) {
+            cargarDatos();
+        }
+    }, [refreshCounter, cargarDatos]);
 
     // Handlers
     const handleVerDetalle = (subasta) => {

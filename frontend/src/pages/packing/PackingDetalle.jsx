@@ -7,10 +7,11 @@
  * RF-02: Incluye indicadores visuales del estado de subasta.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button, Badge, Modal } from "../../components/common";
 import { ImageGallery } from "../../components/packing";
 import { usePermissions } from "../../hooks/usePermissions";
+import { useSubastasContext } from "../../context/SubastasWSContext";
 import {
   getSubastasPorPacking,
   createSubasta,
@@ -43,6 +44,10 @@ const SUBASTA_LABELS = {
 
 const PackingDetalle = ({ packing, onClose, onEdit }) => {
   const { hasPermission, isAdmin } = usePermissions();
+  
+  // Contexto de WebSocket para actualizaciones en tiempo real
+  const { refreshCounter } = useSubastasContext();
+  
   const [subastas, setSubastas] = useState({});
   const [loadingSubastas, setLoadingSubastas] = useState(true); // Nuevo estado de carga
   const [showSubastaModal, setShowSubastaModal] = useState(false);
@@ -105,7 +110,7 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
     };
 
     cargarSubastas();
-  }, [packing?.id]);
+  }, [packing?.id, refreshCounter]); // Actualiza cuando llegan eventos de WebSocket
 
   if (!packing) return null;
 
