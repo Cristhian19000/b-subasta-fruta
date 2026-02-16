@@ -280,6 +280,11 @@ class SubastaWebSocketService:
                     "precio_actual": str(subasta.precio_actual)
                 }
             )
+        
+        # NOTIFICACIÓN EXTRA PARA EL HOME/DASHBOARD
+        # Notificar al canal general que la subasta cambió (precio_actual, total_ofertas, etc.)
+        # Esto disparará el auto-refresh en el Home.jsx
+        cls.notificar_subasta_actualizada(subasta, cambios=['precio_actual', 'total_ofertas'])
     
     @classmethod
     def notificar_tiempo_actualizado(cls, subasta):

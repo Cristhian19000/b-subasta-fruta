@@ -12,5 +12,5 @@ websocket_urlpatterns = [
     
     # Canal específico de una subasta (para pujas en tiempo real)
     # Recibe: nuevas pujas, actualizaciones de precio, tiempo restante
-    re_path(r'ws/subasta/(?P<subasta_id>\d+)/$', consumers.SubastaDetalleConsumer.as_asgi()),
+    re_path(r'ws/subastas/(?P<subasta_id>\d+)/$', consumers.SubastaDetalleConsumer.as_asgi()),
 ]

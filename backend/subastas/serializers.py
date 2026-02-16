@@ -536,6 +536,8 @@ class SubastaMovilDetailSerializer(serializers.ModelSerializer):
     total_pujas = serializers.SerializerMethodField()
     ultima_puja = serializers.SerializerMethodField()
     mi_ultima_puja = serializers.SerializerMethodField()
+    estoy_participando = serializers.SerializerMethodField()
+    estoy_ganando = serializers.SerializerMethodField()
     ahora_servidor_ms = serializers.SerializerMethodField()
     
     class Meta:
@@ -559,6 +561,8 @@ class SubastaMovilDetailSerializer(serializers.ModelSerializer):
             'total_pujas',
             'ultima_puja',
             'mi_ultima_puja',
+            'estoy_participando',
+            'estoy_ganando',
             'ahora_servidor_ms',
         ]
     
@@ -615,7 +619,7 @@ class SubastaMovilDetailSerializer(serializers.ModelSerializer):
     def get_hora_fin_ms(self, obj):
         """Timestamp de fin en milisegundos UTC (para cronómetro)."""
         return int(obj.fecha_hora_fin.timestamp() * 1000)
-
+    
     def get_ahora_servidor_ms(self, obj):
         """Timestamp actual del servidor en milisegundos para sincronización móvil."""
         return int(timezone.now().timestamp() * 1000)
@@ -654,6 +658,18 @@ class SubastaMovilDetailSerializer(serializers.ModelSerializer):
                 if mi_puja:
                     return float(mi_puja.monto)
         return None
+
+    def get_estoy_participando(self, obj):
+        """Indica si el cliente autenticado tiene al menos una puja en esta subasta."""
+        return self.get_mi_ultima_puja(obj) is not None
+    
+    def get_estoy_ganando(self, obj):
+        """Indica si el cliente autenticado tiene la puja más alta (está ganando)."""
+        mi_puja = self.get_mi_ultima_puja(obj)
+        if not mi_puja:
+            return False
+        # Comparar con el precio actual (que es la puja más alta)
+        return mi_puja >= float(obj.precio_actual)
 
 
 class PujaMovilSerializer(serializers.ModelSerializer):

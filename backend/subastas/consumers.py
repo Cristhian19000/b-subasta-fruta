@@ -31,6 +31,7 @@ class SubastasConsumer(AsyncJsonWebsocketConsumer):
     
     async def connect(self):
         """Conexión establecida."""
+        print("DEBUG: SubastasConsumer.connect")
         user = self.scope.get("user", AnonymousUser())
         
         # Unirse al grupo general
@@ -80,6 +81,7 @@ class SubastasConsumer(AsyncJsonWebsocketConsumer):
     
     async def subasta_actualizada(self, event):
         """Subasta actualizada."""
+        print(f"DEBUG: SubastasConsumer.subasta_actualizada - Event: {event.get('tipo', 'n/a')}")
         await self.send_json({
             "tipo": "subasta_actualizada",
             "subasta": event["subasta"],
@@ -158,6 +160,7 @@ class SubastaDetalleConsumer(AsyncJsonWebsocketConsumer):
     
     async def connect(self):
         """Conexión a una subasta específica."""
+        print(f"DEBUG: SubastaDetalleConsumer.connect - ID: {self.scope['url_route']['kwargs'].get('subasta_id')}")
         self.subasta_id = self.scope['url_route']['kwargs']['subasta_id']
         self.grupo_subasta = f"subasta_{self.subasta_id}"
         
@@ -215,6 +218,15 @@ class SubastaDetalleConsumer(AsyncJsonWebsocketConsumer):
     # =========================================================================
     # Handlers para eventos del grupo
     # =========================================================================
+    
+    async def subasta_actualizada(self, event):
+        """Subasta actualizada (cambio de precio, tiempo, etc)."""
+        print(f"DEBUG: SubastaDetalleConsumer.subasta_actualizada - Event: {event.get('tipo', 'n/a')}")
+        await self.send_json({
+            "tipo": "subasta_actualizada",
+            "subasta": event["subasta"],
+            "cambios": event.get("cambios", [])
+        })
     
     async def nueva_puja(self, event):
         """Nueva puja realizada."""
