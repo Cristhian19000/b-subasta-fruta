@@ -7,10 +7,11 @@
  * RF-02: Incluye indicadores visuales del estado de subasta.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button, Badge, Modal } from "../../components/common";
 import { ImageGallery } from "../../components/packing";
 import { usePermissions } from "../../hooks/usePermissions";
+import { useSubastasContext } from "../../context/SubastasWSContext";
 import {
   getSubastasPorPacking,
   createSubasta,
@@ -43,6 +44,10 @@ const SUBASTA_LABELS = {
 
 const PackingDetalle = ({ packing, onClose, onEdit }) => {
   const { hasPermission, isAdmin } = usePermissions();
+  
+  // Contexto de WebSocket para actualizaciones en tiempo real
+  const { refreshCounter } = useSubastasContext();
+  
   const [subastas, setSubastas] = useState({});
   const [loadingSubastas, setLoadingSubastas] = useState(true); // Nuevo estado de carga
   const [showSubastaModal, setShowSubastaModal] = useState(false);
@@ -70,11 +75,32 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
         // Manejar respuesta paginada o array directo
         const data = response.data?.results || response.data || [];
         const subastasArray = Array.isArray(data) ? data : [];
+        
         // Crear un mapa de packing_detalle_id -> subasta
+        // Priorizar subastas NO canceladas cuando hay múltiples para el mismo detalle
         const subastasMap = {};
+        
+        // Primero agregamos todas, las canceladas se sobrescriben si hay otra
         subastasArray.forEach((s) => {
-          subastasMap[s.packing_detalle] = s;
+          const existente = subastasMap[s.packing_detalle];
+          
+          // Si no hay existente, agregar
+          if (!existente) {
+            subastasMap[s.packing_detalle] = s;
+          } 
+          // Si la existente está cancelada y la nueva no, reemplazar
+          else if (existente.estado_actual === 'CANCELADA' && s.estado_actual !== 'CANCELADA') {
+            subastasMap[s.packing_detalle] = s;
+          }
+          // Si ambas están no canceladas, priorizar por fecha más reciente
+          else if (existente.estado_actual !== 'CANCELADA' && s.estado_actual !== 'CANCELADA') {
+            // Comparar fechas de creación
+            if (new Date(s.fecha_creacion) > new Date(existente.fecha_creacion)) {
+              subastasMap[s.packing_detalle] = s;
+            }
+          }
         });
+        
         setSubastas(subastasMap);
       } catch (err) {
         console.error("Error cargando subastas:", err);
@@ -84,7 +110,7 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
     };
 
     cargarSubastas();
-  }, [packing?.id]);
+  }, [packing?.id, refreshCounter]); // Actualiza cuando llegan eventos de WebSocket
 
   if (!packing) return null;
 
@@ -151,10 +177,22 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
     const response = await getSubastasPorPacking(packing.id);
     const data = response.data?.results || response.data || [];
     const subastasArray = Array.isArray(data) ? data : [];
+    
+    // Priorizar subastas NO canceladas cuando hay múltiples para el mismo detalle
     const subastasMap = {};
     subastasArray.forEach((s) => {
-      subastasMap[s.packing_detalle] = s;
+      const existente = subastasMap[s.packing_detalle];
+      if (!existente) {
+        subastasMap[s.packing_detalle] = s;
+      } else if (existente.estado_actual === 'CANCELADA' && s.estado_actual !== 'CANCELADA') {
+        subastasMap[s.packing_detalle] = s;
+      } else if (existente.estado_actual !== 'CANCELADA' && s.estado_actual !== 'CANCELADA') {
+        if (new Date(s.fecha_creacion) > new Date(existente.fecha_creacion)) {
+          subastasMap[s.packing_detalle] = s;
+        }
+      }
     });
+    
     setSubastas(subastasMap);
   };
 
@@ -201,11 +239,21 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
       setDetalleParaSubasta(null);
     } catch (err) {
       console.error("Error creando subasta:", err);
-      const errorMsg =
-        err.response?.data?.packing_detalle?.[0] ||
-        err.response?.data?.fecha_hora_inicio?.[0] ||
-        err.response?.data?.detail ||
-        "Error al crear la subasta";
+
+      // Extraer mensaje de error específico del backend
+      let errorMsg = "Error al crear la subasta";
+      if (err.response?.data) {
+        // Si es un error de validación de campo específico
+        if (typeof err.response.data === 'object') {
+          const errors = Object.entries(err.response.data)
+            .map(([field, msgs]) => `${field}: ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`)
+            .join('\n');
+          errorMsg = errors || errorMsg;
+        } else if (typeof err.response.data === 'string') {
+          errorMsg = err.response.data;
+        }
+      }
+
       setErrorSubasta(errorMsg);
     } finally {
       setCreandoSubasta(false);
@@ -404,8 +452,6 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
                 {/* Tabla de detalles */}
                 {tipo.detalles && tipo.detalles.length > 0 ? (
                   <table className="min-w-full divide-y divide-gray-200 table-fixed">
-                    {" "}
-                    {/* 1. Añadido table-fixed */}
                     <thead className="bg-gray-50">
                       <tr>
                         {/* 2. Definimos anchos específicos para cada columna */}
@@ -468,20 +514,24 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
                                   </div>
                                 ) : subasta ? (
                                   <div className="flex gap-1">
-                                    <Button
-                                      size="sm"
-                                      variant="secondary"
-                                      onClick={() =>
-                                        handleVerSubasta(
-                                          subasta,
-                                          detalle,
-                                          tipo.tipo_fruta_nombre,
-                                        )
-                                      }
-                                    >
-                                      Ver
-                                    </Button>
-                                    {subasta.estado_actual === "PROGRAMADA" && (
+                                    {/* Botón Ver - disponible para todos los estados */}
+                                    {(isAdmin() || hasPermission('subastas', 'view_detail') || hasPermission('packing', 'create_auction')) && (
+                                      <Button
+                                        size="sm"
+                                        variant="secondary"
+                                        onClick={() =>
+                                          handleVerSubasta(
+                                            subasta,
+                                            detalle,
+                                            tipo.tipo_fruta_nombre,
+                                          )
+                                        }
+                                      >
+                                        Ver
+                                      </Button>
+                                    )}
+                                    {/* Botón Editar - solo para PROGRAMADA */}
+                                    {subasta.estado_actual === "PROGRAMADA" && (isAdmin() || hasPermission('subastas', 'update') || hasPermission('packing', 'create_auction')) && (
                                       <Button
                                         size="sm"
                                         variant="warning"
@@ -494,6 +544,22 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
                                         }
                                       >
                                         Editar
+                                      </Button>
+                                    )}
+                                    {/* Botón Volver a Subastar - solo para CANCELADA */}
+                                    {subasta.estado_actual === "CANCELADA" && (isAdmin() || hasPermission('packing', 'create_auction')) && (
+                                      <Button
+                                        size="sm"
+                                        variant="warning"
+                                        onClick={() =>
+                                          handleAbrirSubastaModal(
+                                            detalle,
+                                            tipo.tipo_fruta_nombre,
+                                          )
+                                        }
+                                        title="Crear nueva subasta para este día"
+                                      >
+                                        Volver a Subastar
                                       </Button>
                                     )}
                                   </div>
@@ -583,7 +649,9 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
         <Button variant="secondary" onClick={onClose}>
           Cerrar
         </Button>
-        <Button onClick={onEdit}>Editar</Button>
+        {(isAdmin() || hasPermission('packing', 'update')) && (
+          <Button onClick={onEdit}>Editar</Button>
+        )}
       </div>
 
       {/* Modal para crear/editar subasta */}
@@ -672,8 +740,8 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
                         }))
                       }
                       className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${subastaForm.duracion_horas === value
-                          ? "bg-blue-600 text-white border-blue-600"
-                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                         }`}
                     >
                       {label}
@@ -816,7 +884,7 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-gray-50 p-4 rounded-lg">
                 <h4 className="text-sm font-semibold text-gray-700 mb-3">
-                  ⏰ Horarios
+                  Horarios
                 </h4>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
@@ -869,7 +937,7 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
 
               <div className="bg-green-50 p-4 rounded-lg">
                 <h4 className="text-sm font-semibold text-gray-700 mb-3">
-                  💰 Precios
+                  Precios
                 </h4>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
@@ -904,7 +972,7 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
             {subastaSeleccionada.cliente_ganando && (
               <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
                 <h4 className="text-sm font-semibold text-yellow-800 mb-2">
-                  🏆 Oferta Ganadora Actual
+                  Oferta Ganadora Actual
                 </h4>
                 <div className="flex justify-between items-center">
                   <span className="text-yellow-700">

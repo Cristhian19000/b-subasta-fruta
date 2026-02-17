@@ -69,9 +69,10 @@ export const getResumenSubastas = () => {
 
 /**
  * Actualizar estados de subastas basándose en las fechas.
+ * Detecta subastas que deben pasar a ACTIVA o FINALIZADA.
  */
 export const actualizarEstadosSubastas = () => {
-    return api.post('/admin/subastas/actualizar_estados/');
+    return api.get('/admin/subastas/actualizar_estados/');
 };
 
 // =============================================================================

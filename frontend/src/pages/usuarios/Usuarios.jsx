@@ -5,26 +5,31 @@
 import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import { Button, Alert, Modal, Badge } from '../../components/common';
+import { usePermissions } from '../../hooks/usePermissions';
+import { useAuth } from '../../context/AuthContext';
 import UsuarioForm from './UsuarioForm';
 
 const initialFormData = {
     username: '',
-    email: '',
     first_name: '',
     last_name: '',
     password: '',
-    es_administrador: false,
-    telefono: '',
-    perfil_permiso_id: '', // Nuevo campo
+    dni: '',
+    perfil_permiso_id: '',
 };
 
 const Usuarios = () => {
+    const { hasPermission, isAdmin } = usePermissions();
+    const { user } = useAuth();
     const [usuarios, setUsuarios] = useState([]);
     const [perfiles, setPerfiles] = useState([]); // Perfiles de permisos disponibles
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [search, setSearch] = useState('');
+
+    // Verificar permisos
+    const canManage = isAdmin() || hasPermission('usuarios', 'manage_usuarios');
 
     const [showModal, setShowModal] = useState(false);
     const [modalMode, setModalMode] = useState('create');
@@ -73,13 +78,11 @@ const Usuarios = () => {
             const user = response.data;
             setFormData({
                 username: user.username,
-                email: user.email,
                 first_name: user.first_name,
                 last_name: user.last_name,
                 password: '',
-                es_administrador: user.perfil?.es_administrador || false,
-                telefono: user.perfil?.telefono || '',
-                perfil_permiso_id: user.perfil?.perfil_permiso?.id || '', // Nuevo
+                dni: user.perfil?.dni || '',
+                perfil_permiso_id: user.perfil?.perfil_permiso?.id || '',
             });
             setSelectedUsuario(user);
             setModalMode('edit');
@@ -139,13 +142,20 @@ const Usuarios = () => {
             const errorData = err.response?.data;
 
             if (errorData && typeof errorData === 'object') {
-                // Si son errores de campo, guardarlos para mostrarlos en campos individuales
-                setFormErrors(errorData);
-                // NO mostrar mensaje general, solo errores inline en el formulario
+                // Si hay un error general (como auto-edición), mostrarlo como mensaje general
+                if (errorData.error) {
+                    setError(errorData.error);
+                    setShowModal(false);
+                } else {
+                    // Si son errores de campo, guardarlos para mostrarlos en campos individuales
+                    setFormErrors(errorData);
+                    // NO mostrar mensaje general, solo errores inline en el formulario
+                }
             } else {
                 // Solo mostrar mensaje general si no son errores de campo
                 setError(err.response?.data?.detail || 'Error al guardar el usuario');
             }
+            setTimeout(() => setError(''), 5000);
         }
     };
 
@@ -157,7 +167,7 @@ const Usuarios = () => {
 
     const filteredUsuarios = usuarios.filter(usuario =>
         usuario.username?.toLowerCase().includes(search.toLowerCase()) ||
-        usuario.email?.toLowerCase().includes(search.toLowerCase()) ||
+        usuario.dni?.toLowerCase().includes(search.toLowerCase()) ||
         usuario.first_name?.toLowerCase().includes(search.toLowerCase()) ||
         usuario.last_name?.toLowerCase().includes(search.toLowerCase())
     );
@@ -172,9 +182,11 @@ const Usuarios = () => {
                         Gestión de usuarios del sistema
                     </p>
                 </div>
-                <Button onClick={handleCreate}>
-                    Nuevo Usuario
-                </Button>
+                {canManage && (
+                    <Button onClick={handleCreate}>
+                        Nuevo Usuario
+                    </Button>
+                )}
             </div>
 
             {/* Alertas */}
@@ -185,7 +197,7 @@ const Usuarios = () => {
             <div className="mb-6">
                 <input
                     type="text"
-                    placeholder="Buscar por usuario, email o nombre..."
+                    placeholder="Buscar por usuario, nombre o DNI..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     className="w-full max-w-md px-4 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-gray-900 focus:border-gray-900"
@@ -211,10 +223,10 @@ const Usuarios = () => {
                                     Nombre
                                 </th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Email
+                                    DNI
                                 </th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Rol
+                                    Perfil
                                 </th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Estado
@@ -234,12 +246,21 @@ const Usuarios = () => {
                                         {`${usuario.first_name || ''} ${usuario.last_name || ''}`.trim() || '-'}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {usuario.email || '-'}
+                                        {usuario.dni || '-'}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
-                                        <Badge variant={usuario.es_administrador ? 'purple' : 'default'}>
-                                            {usuario.es_administrador ? 'Administrador' : 'Trabajador'}
-                                        </Badge>
+                                        {usuario.perfil_permiso ? (
+                                            <div className="text-sm">
+                                                <div className="text-gray-900 font-medium">
+                                                    {usuario.perfil_permiso.nombre}
+                                                </div>
+                                                {usuario.perfil_permiso.es_superusuario && (
+                                                    <div className="text-xs text-purple-600">Acceso Total</div>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <span className="text-gray-400 text-sm italic">Sin perfil</span>
+                                        )}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <Badge variant={usuario.is_active ? 'success' : 'error'}>
@@ -247,26 +268,40 @@ const Usuarios = () => {
                                         </Badge>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                                        <button
-                                            onClick={() => handleEdit(usuario.id)}
-                                            className="text-gray-600 hover:text-gray-900 mr-3 cursor-pointer"
-                                        >
-                                            Editar
-                                        </button>
-                                        {usuario.is_active ? (
-                                            <button
-                                                onClick={() => handleDelete(usuario.id)}
-                                                className="text-red-600 hover:text-red-900 cursor-pointer"
-                                            >
-                                                Desactivar
-                                            </button>
+                                        {canManage ? (
+                                            <>
+                                                {usuario.id === user?.id ? (
+                                                    <span className="text-gray-400 text-xs" title="No puedes editar tu propio usuario">
+                                                        (Tú)
+                                                    </span>
+                                                ) : (
+                                                    <>
+                                                        <button
+                                                            onClick={() => handleEdit(usuario.id)}
+                                                            className="text-gray-600 hover:text-gray-900 mr-3 cursor-pointer"
+                                                        >
+                                                            Editar
+                                                        </button>
+                                                        {usuario.is_active ? (
+                                                            <button
+                                                                onClick={() => handleDelete(usuario.id)}
+                                                                className="text-red-600 hover:text-red-900 cursor-pointer"
+                                                            >
+                                                                Desactivar
+                                                            </button>
+                                                        ) : (
+                                                            <button
+                                                                onClick={() => handleActivar(usuario.id)}
+                                                                className="text-green-600 hover:text-green-900 cursor-pointer"
+                                                            >
+                                                                Activar
+                                                            </button>
+                                                        )}
+                                                    </>
+                                                )}
+                                            </>
                                         ) : (
-                                            <button
-                                                onClick={() => handleActivar(usuario.id)}
-                                                className="text-green-600 hover:text-green-900 cursor-pointer"
-                                            >
-                                                Activar
-                                            </button>
+                                            <span className="text-gray-400 text-xs">Sin permisos</span>
                                         )}
                                     </td>
                                 </tr>

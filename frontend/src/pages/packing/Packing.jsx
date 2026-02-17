@@ -8,6 +8,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import { Button, Alert, Modal, Badge } from '../../components/common';
+import { usePermissions } from '../../hooks/usePermissions';
 import PackingForm from './PackingForm';
 import PackingDetalle from './PackingDetalle';
 
@@ -37,6 +38,7 @@ const getYear = (dateStr) => {
 };
 
 const Packing = () => {
+    const { hasPermission, isAdmin } = usePermissions();
     // Estados para datos
     const [packings, setPackings] = useState([]);
     const [packingsFiltrados, setPackingsFiltrados] = useState([]);
@@ -192,16 +194,41 @@ const Packing = () => {
         }
     };
 
-    const handleDelete = async (id) => {
-        if (!window.confirm('¿Está seguro de eliminar este packing?')) return;
+    const handleDelete = async (id, confirmed = false) => {
+        if (!confirmed && !window.confirm('¿Está seguro de eliminar este packing?')) return;
 
         try {
-            await api.delete(`/packing-semanal/${id}/`);
+            const url = confirmed ? `/packing-semanal/${id}/?confirm=true` : `/packing-semanal/${id}/`;
+            await api.delete(url);
             setSuccess('Packing eliminado correctamente');
             fetchPackings();
             setTimeout(() => setSuccess(''), 3000);
         } catch (err) {
-            setError('Error al eliminar el packing');
+            const errorData = err.response?.data;
+            
+            // Si requiere confirmación porque hay subastas canceladas
+            if (err.response?.status === 409 && errorData?.requires_confirmation) {
+                const canceladas = errorData.subastas_canceladas;
+                const confirmar = window.confirm(
+                    `Este packing tiene ${canceladas} subasta(s) cancelada(s).\n\n` +
+                    `¿Está seguro de que desea eliminarlo de todas formas?\n\n` +
+                    `Se eliminarán también las subastas canceladas asociadas.`
+                );
+                if (confirmar) {
+                    // Reintentar con confirmación
+                    handleDelete(id, true);
+                }
+                return;
+            }
+            
+            if (errorData?.error) {
+                // Error con mensaje personalizado del backend
+                setError(errorData.error);
+            } else if (errorData?.detail) {
+                setError(errorData.detail);
+            } else {
+                setError('Error al eliminar el packing');
+            }
         }
     };
 
@@ -232,7 +259,9 @@ const Packing = () => {
                 // Extraemos todos los mensajes de error en una sola cadena
                 const mensajes = Object.entries(errorData).map(([campo, errores]) => {
                     const nombreCampo = campo === 'fecha_inicio_semana' ? 'Fecha' : campo;
-                    return `${nombreCampo}: ${errores.join(', ')}`;
+                    // errores puede ser array o string
+                    const mensajeError = Array.isArray(errores) ? errores.join(', ') : String(errores);
+                    return `${nombreCampo}: ${mensajeError}`;
                 }).join(' | ');
 
                 setError(mensajes); // Este estado 'error' debe mostrarse en tu UI
@@ -290,9 +319,11 @@ const Packing = () => {
                         Gestión de proyecciones semanales de empaque
                     </p>
                 </div>
-                <Button onClick={handleCreate}>
-                    + Nuevo Packing
-                </Button>
+                {(isAdmin() || hasPermission('packing', 'create')) && (
+                    <Button onClick={handleCreate}>
+                        + Nuevo Packing
+                    </Button>
+                )}
             </div>
 
             {/* Alertas */}
@@ -350,9 +381,11 @@ const Packing = () => {
             ) : packingsFiltrados.length === 0 ? (
                 <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
                     <p className="text-gray-500">No hay packings registrados</p>
-                    <Button className="mt-4" onClick={handleCreate}>
-                        Crear primer packing
-                    </Button>
+                    {(isAdmin() || hasPermission('packing', 'create')) && (
+                        <Button className="mt-4" onClick={handleCreate}>
+                            Crear primer packing
+                        </Button>
+                    )}
                 </div>
             ) : (
                 <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
@@ -414,24 +447,30 @@ const Packing = () => {
                                         </Badge>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                                        <button
-                                            onClick={() => handleView(packing.id)}
-                                            className="text-gray-600 hover:text-gray-900 mr-3 cursor-pointer"
-                                        >
-                                            Ver
-                                        </button>
-                                        <button
-                                            onClick={() => handleEdit(packing.id)}
-                                            className="text-gray-600 hover:text-gray-900 mr-3 cursor-pointer"
-                                        >
-                                            Editar
-                                        </button>
-                                        <button
-                                            onClick={() => handleDelete(packing.id)}
-                                            className="text-red-600 hover:text-red-900 cursor-pointer"
-                                        >
-                                            Eliminar
-                                        </button>
+                                        {(isAdmin() || hasPermission('packing', 'view_detail')) && (
+                                            <button
+                                                onClick={() => handleView(packing.id)}
+                                                className="text-gray-600 hover:text-gray-900 mr-3 cursor-pointer"
+                                            >
+                                                Ver
+                                            </button>
+                                        )}
+                                        {(isAdmin() || hasPermission('packing', 'update')) && (
+                                            <button
+                                                onClick={() => handleEdit(packing.id)}
+                                                className="text-gray-600 hover:text-gray-900 mr-3 cursor-pointer"
+                                            >
+                                                Editar
+                                            </button>
+                                        )}
+                                        {(isAdmin() || hasPermission('packing', 'delete')) && (
+                                            <button
+                                                onClick={() => handleDelete(packing.id)}
+                                                className="text-red-600 hover:text-red-900 cursor-pointer"
+                                            >
+                                                Eliminar
+                                            </button>
+                                        )}
                                     </td>
                                 </tr>
                             ))}

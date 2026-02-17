@@ -15,6 +15,7 @@ def tiene_permiso(usuario, modulo, permiso):
     Verifica si un usuario tiene un permiso específico en un módulo.
     
     Soporta formatos de permisos JSON como listas o diccionarios.
+    Implementa lógica jerárquica: manage_* implica view_*
     """
     if not usuario or not usuario.is_authenticated:
         return False
@@ -27,32 +28,50 @@ def tiene_permiso(usuario, modulo, permiso):
     perfil = getattr(usuario, 'perfil', None)
     if not perfil:
         return False
-        
-    # 3. Administradores del sistema tienen acceso total
-    if perfil.es_administrador:
-        return True
     
-    # 4. Verificar si tiene perfil de permisos asignado
+    # 3. Verificar si tiene perfil de permisos asignado
     perfil_permiso = perfil.perfil_permiso
     if not perfil_permiso or not perfil_permiso.activo:
         return False
     
-    # 5. Perfil marcado como superusuario = acceso total
+    # 4. Perfil marcado como superusuario = acceso total
     if perfil_permiso.es_superusuario:
         return True
     
-    # 6. Verificar permiso específico en el módulo (soporta formato lista o diccionario)
+    # 5. Verificar permiso específico en el módulo (soporta formato lista o diccionario)
     permisos_json = perfil_permiso.permisos or {}
     permisos_modulo = permisos_json.get(modulo, [])
     
-    if isinstance(permisos_modulo, dict):
-        # Formato: {"view_list": true, "create": false}
-        return permisos_modulo.get(permiso, False) is True
-    elif isinstance(permisos_modulo, list):
-        # Formato: ["view_list", "create"]
-        return permiso in permisos_modulo
+    # Helper para verificar si tiene un permiso
+    def _tiene_permiso_directo(perm):
+        if isinstance(permisos_modulo, dict):
+            # Formato: {"view_list": true, "create": false}
+            return permisos_modulo.get(perm, False) is True
+        elif isinstance(permisos_modulo, list):
+            # Formato: ["view_list", "create"]
+            return perm in permisos_modulo
+        return False
+    
+    # 6. LÓGICA JERÁRQUICA: manage_* implica view_*
+    # Si tiene permiso directo, permitir
+    if _tiene_permiso_directo(permiso):
+        return True
+    
+    # Si pide view_* y tiene manage_*, permitir
+    if permiso.startswith('view_'):
+        # Extraer el sufijo (ej: "view_empresas" -> "empresas")
+        sufijo = permiso[5:]  # Remover "view_"
+        manage_permiso = f"manage_{sufijo}"
+        if _tiene_permiso_directo(manage_permiso):
+            return True
+    
+    # 8. Lógica implícita: Si pides 'view_list' y tienes cualquier permiso en el módulo, se permite.
+    # Esto es consistente con la lógica del frontend y necesario para navegar.
+    if permiso == 'view_list' and len(permisos_modulo) > 0:
+        return True
     
     return False
+
 
 
 def requiere_permiso(modulo, permiso):
@@ -85,7 +104,7 @@ class TienePermisoModulo(BasePermission):
             return True
         
         perfil = getattr(request.user, 'perfil', None)
-        if perfil and perfil.es_administrador:
+        if perfil and perfil.perfil_permiso and perfil.perfil_permiso.es_superusuario:
             return True
             
         if not perfil or not perfil.perfil_permiso:
@@ -98,7 +117,7 @@ class TienePermisoModulo(BasePermission):
 
 class SoloAdministradores(BasePermission):
     """
-    Solo permite acceso a administradores.
+    Solo permite acceso a administradores (superusuarios o perfiles con es_superusuario).
     """
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
@@ -106,7 +125,9 @@ class SoloAdministradores(BasePermission):
         if request.user.is_superuser:
             return True
         perfil = getattr(request.user, 'perfil', None)
-        return perfil.es_administrador if perfil else False
+        if perfil and perfil.perfil_permiso and perfil.perfil_permiso.es_superusuario:
+            return True
+        return False
 
 
 class RBACPermission(BasePermission):
@@ -127,21 +148,31 @@ class RBACPermission(BasePermission):
         if not request.user or not request.user.is_authenticated:
             return False
             
-        # 2. Superusuario de Django tiene acceso total
+        # 2. Verificar si es un Cliente (app móvil) - Los clientes no usan RBAC
+        # Los clientes solo pueden acceder a sus propios endpoints específicos
+        if not hasattr(request.user, 'is_superuser'):
+            # Es un Cliente, no aplicar RBAC (los endpoints de Cliente manejan sus propios permisos)
+            return True
+            
+        # 3. Superusuario de Django tiene acceso total
         if request.user.is_superuser:
             return True
-            
-        # 3. Administradores del sistema tienen acceso total
+        
+        # 4. Verificar si es administrador vía perfil de permisos
         perfil = getattr(request.user, 'perfil', None)
-        if perfil and perfil.es_administrador:
+        if perfil and perfil.perfil_permiso and perfil.perfil_permiso.es_superusuario:
             return True
             
-        # 4. Obtener el módulo desde el view
-        modulo = getattr(view, 'modulo_permiso', None)
-        if not modulo:
+        # 5. Obtener el módulo desde el view
+        modulos = getattr(view, 'modulo_permiso', None)
+        if not modulos:
             # Si el ViewSet no define módulo, denegamos por seguridad (excepto para superusers)
             print(f"[RBAC] DENEGADO: ViewSet {view.__class__.__name__} no define modulo_permiso")
             return False
+            
+        # Convertir a lista si es un string para manejarlo uniformemente
+        if isinstance(modulos, str):
+            modulos = [modulos]
             
         # 5. Obtener la acción
         action = getattr(view, 'action', None)
@@ -157,9 +188,27 @@ class RBACPermission(BasePermission):
         if not permiso:
             return True
             
-        # 8. Verificación final
-        resultado = tiene_permiso(request.user, modulo, permiso)
-        if not resultado:
-            print(f"[RBAC] DENEGADO: {request.user.username} -> {modulo}.{permiso} (Action: {action})")
+        # 8. Verificación final: permitir si tiene permiso en CUALQUIERA de los módulos definidos
+        # Convertir permiso a lista si es string para manejarlo uniformemente
+        permisos_requeridos = permiso if isinstance(permiso, list) else [permiso]
         
-        return resultado
+        for modulo in modulos:
+            # A. Intentar con el permiso específico mapeado (si es lista, basta con tener uno)
+            for perm in permisos_requeridos:
+                if tiene_permiso(request.user, modulo, perm):
+                    return True
+            
+            # B. Fallback para acciones de lectura: si tienes 'view_list' en el módulo,
+            # puedes ejecutar acciones de visualización básica (list/retrieve).
+            if action in ['list', 'retrieve'] and tiene_permiso(request.user, modulo, 'view_list'):
+                return True
+            
+            # C. Auto-incluir view_reports si tiene algún permiso de generación de reportes
+            if modulo == 'reportes' and permiso == 'view_reports':
+                if (tiene_permiso(request.user, 'reportes', 'generate_auctions') or
+                    tiene_permiso(request.user, 'reportes', 'generate_packings') or
+                    tiene_permiso(request.user, 'reportes', 'generate_clients')):
+                    return True
+        
+        print(f"[RBAC] DENEGADO: {request.user.username} -> {modulos}.{permiso} (Action: {action})")
+        return False

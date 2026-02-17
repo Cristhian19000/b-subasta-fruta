@@ -81,6 +81,9 @@ class SubastaListSerializer(serializers.ModelSerializer):
     cliente_ganando = serializers.SerializerMethodField()
     total_ofertas = serializers.SerializerMethodField()
     
+    # Indicador de si fue reactivada (solo para canceladas)
+    fue_reactivada = serializers.SerializerMethodField()
+    
     class Meta:
         model = Subasta
         fields = [
@@ -101,6 +104,7 @@ class SubastaListSerializer(serializers.ModelSerializer):
             'cliente_ganando',
             'total_ofertas',
             'fecha_creacion',
+            'fue_reactivada',
         ]
     
     def get_cliente_ganando(self, obj):
@@ -130,6 +134,24 @@ class SubastaListSerializer(serializers.ModelSerializer):
         """Total de ofertas en la subasta."""
         return obj.ofertas.count()
 
+    def get_fue_reactivada(self, obj):
+        """
+        Indica si esta subasta cancelada fue reemplazada por otra.
+        Solo aplica a subastas CANCELADAS.
+        """
+        if obj.estado != 'CANCELADA':
+            return None  # No aplica para no canceladas
+        
+        # Verificar si existe otra subasta NO cancelada para el mismo packing_detalle
+        from .models import Subasta
+        return Subasta.objects.filter(
+            packing_detalle=obj.packing_detalle
+        ).exclude(
+            estado='CANCELADA'
+        ).exclude(
+            id=obj.id
+        ).exists()
+
 
 class SubastaDetailSerializer(serializers.ModelSerializer):
     """Serializer para detalle de subasta con historial de ofertas."""
@@ -158,6 +180,11 @@ class SubastaDetailSerializer(serializers.ModelSerializer):
     # Información del packing semanal
     packing_semanal_id = serializers.IntegerField(source='packing_semanal.id', read_only=True)
     semana = serializers.SerializerMethodField()
+    ahora_servidor = serializers.SerializerMethodField()
+    
+    # Indicador de si fue reactivada (para canceladas)
+    fue_reactivada = serializers.SerializerMethodField()
+    subasta_reemplazo = serializers.SerializerMethodField()
     
     class Meta:
         model = Subasta
@@ -183,6 +210,9 @@ class SubastaDetailSerializer(serializers.ModelSerializer):
             'imagenes',
             'fecha_creacion',
             'fecha_actualizacion',
+            'ahora_servidor',
+            'fue_reactivada',
+            'subasta_reemplazo',
         ]
     
     def get_imagenes(self, obj):
@@ -200,6 +230,46 @@ class SubastaDetailSerializer(serializers.ModelSerializer):
             'estado': ps.estado
         }
 
+    def get_ahora_servidor(self, obj):
+        """Retorna la hora actual del servidor en formato ISO."""
+        return timezone.now()
+
+    def get_fue_reactivada(self, obj):
+        """Indica si esta subasta cancelada fue reemplazada por otra."""
+        if obj.estado != 'CANCELADA':
+            return None
+        
+        from .models import Subasta
+        return Subasta.objects.filter(
+            packing_detalle=obj.packing_detalle
+        ).exclude(
+            estado='CANCELADA'
+        ).exclude(
+            id=obj.id
+        ).exists()
+
+    def get_subasta_reemplazo(self, obj):
+        """Retorna info de la subasta que reemplazó a esta cancelada."""
+        if obj.estado != 'CANCELADA':
+            return None
+        
+        from .models import Subasta
+        reemplazo = Subasta.objects.filter(
+            packing_detalle=obj.packing_detalle
+        ).exclude(
+            estado='CANCELADA'
+        ).exclude(
+            id=obj.id
+        ).order_by('-fecha_creacion').first()
+        
+        if reemplazo:
+            return {
+                'id': reemplazo.id,
+                'estado': reemplazo.estado_calculado,
+                'fecha_hora_inicio': reemplazo.fecha_hora_inicio,
+            }
+        return None
+
 
 class SubastaCreateSerializer(serializers.ModelSerializer):
     """Serializer para crear/programar subastas (RF-01)."""
@@ -214,12 +284,16 @@ class SubastaCreateSerializer(serializers.ModelSerializer):
         ]
     
     def validate_packing_detalle(self, value):
-        """RF-01: Solo una subasta por registro de producción."""
-        # Verificar si ya existe una subasta para este detalle
-        if Subasta.objects.filter(packing_detalle=value).exists():
-            raise serializers.ValidationError(
-                "Ya existe una subasta para este registro de producción."
-            )
+        """RF-01: Solo permitir crear nueva subasta si la anterior fue CANCELADA."""
+        # Verificar si existe alguna subasta que NO esté cancelada
+        # (PROGRAMADA, ACTIVA, o FINALIZADA todas bloquean la creación)
+        subasta_activa = Subasta.objects.filter(
+            packing_detalle=value
+        ).exclude(estado='CANCELADA').exists()
+        
+        if subasta_activa:
+            raise serializers.ValidationError('Ya existe Subasta con este Producción Diaria.')
+        
         return value
     
     def validate(self, data):
@@ -309,6 +383,7 @@ class SubastaMovilListSerializer(serializers.ModelSerializer):
     mi_ultima_puja = serializers.SerializerMethodField()
     estoy_participando = serializers.SerializerMethodField()
     estoy_ganando = serializers.SerializerMethodField()
+    ahora_servidor_ms = serializers.SerializerMethodField()
     
     class Meta:
         model = Subasta
@@ -332,6 +407,7 @@ class SubastaMovilListSerializer(serializers.ModelSerializer):
             'mi_ultima_puja',
             'estoy_participando',
             'estoy_ganando',
+            'ahora_servidor_ms',
         ]
     
     def get_producto(self, obj):
@@ -392,7 +468,11 @@ class SubastaMovilListSerializer(serializers.ModelSerializer):
     def get_hora_fin_ms(self, obj):
         """Timestamp de fin en milisegundos UTC (para cronómetro)."""
         return int(obj.fecha_hora_fin.timestamp() * 1000)
-    
+
+    def get_ahora_servidor_ms(self, obj):
+        """Timestamp actual del servidor en milisegundos para sincronización móvil."""
+        return int(timezone.now().timestamp() * 1000)
+
     def get_estado(self, obj):
         """Estado en minúsculas como espera la app."""
         estado = obj.estado_calculado
@@ -456,6 +536,9 @@ class SubastaMovilDetailSerializer(serializers.ModelSerializer):
     total_pujas = serializers.SerializerMethodField()
     ultima_puja = serializers.SerializerMethodField()
     mi_ultima_puja = serializers.SerializerMethodField()
+    estoy_participando = serializers.SerializerMethodField()
+    estoy_ganando = serializers.SerializerMethodField()
+    ahora_servidor_ms = serializers.SerializerMethodField()
     
     class Meta:
         model = Subasta
@@ -478,6 +561,9 @@ class SubastaMovilDetailSerializer(serializers.ModelSerializer):
             'total_pujas',
             'ultima_puja',
             'mi_ultima_puja',
+            'estoy_participando',
+            'estoy_ganando',
+            'ahora_servidor_ms',
         ]
     
     def get_producto(self, obj):
@@ -534,6 +620,10 @@ class SubastaMovilDetailSerializer(serializers.ModelSerializer):
         """Timestamp de fin en milisegundos UTC (para cronómetro)."""
         return int(obj.fecha_hora_fin.timestamp() * 1000)
     
+    def get_ahora_servidor_ms(self, obj):
+        """Timestamp actual del servidor en milisegundos para sincronización móvil."""
+        return int(timezone.now().timestamp() * 1000)
+    
     def get_estado(self, obj):
         return obj.estado_calculado.lower()
     
@@ -568,6 +658,18 @@ class SubastaMovilDetailSerializer(serializers.ModelSerializer):
                 if mi_puja:
                     return float(mi_puja.monto)
         return None
+
+    def get_estoy_participando(self, obj):
+        """Indica si el cliente autenticado tiene al menos una puja en esta subasta."""
+        return self.get_mi_ultima_puja(obj) is not None
+    
+    def get_estoy_ganando(self, obj):
+        """Indica si el cliente autenticado tiene la puja más alta (está ganando)."""
+        mi_puja = self.get_mi_ultima_puja(obj)
+        if not mi_puja:
+            return False
+        # Comparar con el precio actual (que es la puja más alta)
+        return mi_puja >= float(obj.precio_actual)
 
 
 class PujaMovilSerializer(serializers.ModelSerializer):
@@ -627,7 +729,7 @@ class HistorialPujaSerializer(serializers.ModelSerializer):
     def get_cantidad(self, obj):
         """Cantidad en kilogramos."""
         kilos = obj.subasta.packing_detalle.py
-        return f"{kilos:.0f} kg"
+        return f"{kilos:.2f} kg"
     
     def get_unidad(self, obj):
         """Unidad de precio (siempre kg)."""

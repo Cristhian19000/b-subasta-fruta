@@ -43,7 +43,23 @@ const PermisosEditor = ({ permisos, onChange, estructura }) => {
                 }
             } else {
                 // Agregar permiso
-                newPermisos[codigoModulo] = [...permisosModulo, codigoPermiso];
+                let permisosAAgregar = [codigoPermiso];
+
+                // LÓGICA JERÁRQUICA: Si se selecciona manage_*, auto-seleccionar view_*
+                if (codigoPermiso.startsWith('manage_')) {
+                    const sufijo = codigoPermiso.substring(7); // Remover "manage_"
+                    const permisoView = `view_${sufijo}`;
+
+                    // Verificar si existe el permiso view correspondiente en la estructura
+                    if (estructura && estructura[codigoModulo]) {
+                        const existePermisoView = estructura[codigoModulo].permisos.some(p => p.codigo === permisoView);
+                        if (existePermisoView && !permisosModulo.includes(permisoView)) {
+                            permisosAAgregar.push(permisoView);
+                        }
+                    }
+                }
+
+                newPermisos[codigoModulo] = [...permisosModulo, ...permisosAAgregar];
             }
 
             return newPermisos;
@@ -129,20 +145,58 @@ const PermisosEditor = ({ permisos, onChange, estructura }) => {
                                 {isExpanded && (
                                     <div className="bg-white divide-y divide-gray-100">
                                         {modulo.permisos.map((permiso) => {
-                                            const isChecked = (permisosSeleccionados[codigoModulo] || []).includes(permiso.codigo);
+                                            const permisosModulo = permisosSeleccionados[codigoModulo] || [];
+                                            const isChecked = permisosModulo.includes(permiso.codigo);
+
+                                            // view_list se marca automáticamente si hay otros permisos
+                                            const otrosPermisosActivos = permisosModulo.filter(p => p !== 'view_list').length > 0;
+                                            const isViewListAutoIncluido = permiso.codigo === 'view_list' && otrosPermisosActivos;
+
+                                            // view_* se marca automáticamente si tiene manage_*
+                                            const isViewPermiso = permiso.codigo.startsWith('view_');
+                                            let isManageAutoIncluido = false;
+                                            if (isViewPermiso && permiso.codigo !== 'view_list') {
+                                                const sufijo = permiso.codigo.substring(5); // Remover "view_"
+                                                const permisoManage = `manage_${sufijo}`;
+                                                isManageAutoIncluido = permisosModulo.includes(permisoManage);
+                                            }
+
+                                            const isAutoChecked = isViewListAutoIncluido || isManageAutoIncluido || isChecked;
+                                            const isDisabled = isViewListAutoIncluido || isManageAutoIncluido;
 
                                             return (
                                                 <label
                                                     key={permiso.codigo}
-                                                    className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 cursor-pointer transition-colors"
+                                                    className={`flex items-center gap-3 px-4 py-2.5 transition-colors ${isDisabled
+                                                            ? 'bg-blue-50 cursor-not-allowed'
+                                                            : 'hover:bg-gray-50 cursor-pointer'
+                                                        }`}
+                                                    title={
+                                                        isViewListAutoIncluido
+                                                            ? 'Auto-incluido: necesario para acceder al módulo'
+                                                            : isManageAutoIncluido
+                                                                ? 'Auto-incluido: tienes permisos de gestión'
+                                                                : ''
+                                                    }
                                                 >
                                                     <input
                                                         type="checkbox"
-                                                        checked={isChecked}
-                                                        onChange={() => togglePermiso(codigoModulo, permiso.codigo)}
-                                                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                                        checked={isAutoChecked}
+                                                        onChange={() => !isDisabled && togglePermiso(codigoModulo, permiso.codigo)}
+                                                        disabled={isDisabled}
+                                                        className={`w-4 h-4 border-gray-300 rounded focus:ring-blue-500 ${isDisabled
+                                                                ? 'text-blue-400 cursor-not-allowed'
+                                                                : 'text-blue-600 cursor-pointer'
+                                                            }`}
                                                     />
-                                                    <span className="text-sm text-gray-700 flex-1">{permiso.nombre}</span>
+                                                    <span className={`text-sm flex-1 ${isDisabled ? 'text-blue-700 font-medium' : 'text-gray-700'}`}>
+                                                        {permiso.nombre}
+                                                    </span>
+                                                    {isDisabled && (
+                                                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+                                                            Auto-incluido
+                                                        </span>
+                                                    )}
                                                     <span className="text-xs font-mono text-gray-400">{permiso.codigo}</span>
                                                 </label>
                                             );

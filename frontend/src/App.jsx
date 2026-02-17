@@ -74,14 +74,14 @@ function App() {
 
                         {/* Módulo de reportes - requiere al menos un permiso de reporte */}
                         <Route path="reportes" element={
-                            <ProtectedRoute requirePermission={['reportes', 'generate_auctions']}>
+                            <ProtectedRoute>
                                 <Reportes />
                             </ProtectedRoute>
                         } />
 
                         {/* Módulo de usuarios */}
                         <Route path="usuarios" element={
-                            <ProtectedRoute requirePermission={['usuarios', 'view_list']}>
+                            <ProtectedRoute requirePermission={['usuarios', 'view_usuarios']}>
                                 <Usuarios />
                             </ProtectedRoute>
                         } />

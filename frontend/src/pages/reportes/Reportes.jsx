@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import { descargarReporteSubastas, descargarReporteClientes, descargarReportePacking } from '../../api/reportes';
 import { usePermissions } from '../../hooks/usePermissions';
+import { ShieldAlert } from 'lucide-react';
 
 const Reportes = () => {
     const { hasPermission, isAdmin } = usePermissions();
@@ -18,6 +19,42 @@ const Reportes = () => {
 
     const [loading, setLoading] = useState(null);
     const [mensaje, setMensaje] = useState(null);
+
+    // Verificar si el usuario tiene AL MENOS UN permiso de reportes
+    const hasAnyReportPermission = isAdmin() ||
+        hasPermission('reportes', 'generate_auctions') ||
+        hasPermission('reportes', 'generate_packings') ||
+        hasPermission('reportes', 'generate_clients');
+
+    // Si no tiene ningún permiso de reportes, mostrar mensaje de acceso denegado
+    if (!hasAnyReportPermission) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                <div className="text-center">
+                    <ShieldAlert className="w-16 h-16 text-orange-500 mx-auto mb-4" />
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Acceso Restringido</h2>
+                    <p className="text-gray-600 mb-4">
+                        No tienes permiso para acceder a este módulo.
+                        <br />
+                        <span className="text-sm text-gray-500">
+                            Se requiere al menos uno de los siguientes permisos:
+                            <ul className="mt-2 space-y-1">
+                                <li><code className="bg-gray-100 px-2 py-1 rounded">reportes.generate_auctions</code></li>
+                                <li><code className="bg-gray-100 px-2 py-1 rounded">reportes.generate_packings</code></li>
+                                <li><code className="bg-gray-100 px-2 py-1 rounded">reportes.generate_clients</code></li>
+                            </ul>
+                        </span>
+                    </p>
+                    <button
+                        onClick={() => window.history.back()}
+                        className="text-blue-600 hover:text-blue-800 font-medium"
+                    >
+                        ← Volver
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     /**
      * Maneja la descarga del reporte de subastas Excel.

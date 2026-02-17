@@ -90,6 +90,13 @@ class ClienteViewSet(viewsets.ModelViewSet):
             return ClienteListSerializer
         return ClienteSerializer
     
+    def perform_create(self, serializer):
+        """
+        Sobrescribir perform_create para asignar automáticamente el creado_por.
+        Ahora guarda el User directamente, no el PerfilUsuario.
+        """
+        serializer.save(creado_por=self.request.user)
+    
     # =========================================================================
     # ACCIONES PERSONALIZADAS
     # Endpoints adicionales para operaciones específicas

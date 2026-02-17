@@ -5,8 +5,10 @@
 import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import { Button } from '../../components/common';
+import { usePermissions } from '../../hooks/usePermissions';
 
 const ClienteDetalle = ({ cliente, onEdit, onClose }) => {
+    const { hasPermission } = usePermissions();
     const [stats, setStats] = useState(null);
     const [loadingStats, setLoadingStats] = useState(false);
     const [errorStats, setErrorStats] = useState('');
@@ -131,9 +133,11 @@ const ClienteDetalle = ({ cliente, onEdit, onClose }) => {
                 <Button variant="secondary" onClick={onClose}>
                     Cerrar
                 </Button>
-                <Button onClick={onEdit}>
-                    Editar
-                </Button>
+                {hasPermission('clientes', 'update') && (
+                    <Button onClick={onEdit}>
+                        Editar
+                    </Button>
+                )}
             </div>
 
             <div className="mt-6 bg-gray-50 p-4 rounded-md border border-gray-100">

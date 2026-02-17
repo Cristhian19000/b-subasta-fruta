@@ -10,6 +10,6 @@ from .models import PerfilUsuario
 class PerfilUsuarioAdmin(admin.ModelAdmin):
     """Configuración del admin para perfiles de usuario."""
     
-    list_display = ['user', 'es_administrador', 'telefono', 'fecha_creacion']
-    list_filter = ['es_administrador']
-    search_fields = ['user__username', 'user__email', 'telefono']
+    list_display = ['user', 'perfil_permiso', 'dni', 'fecha_creacion']
+    list_filter = ['perfil_permiso']
+    search_fields = ['user__username', 'dni']

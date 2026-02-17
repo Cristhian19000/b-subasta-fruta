@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../../api/axios';
 import { Button, Alert, Modal, Badge } from '../../components/common';
+import { usePermissions } from '../../hooks/usePermissions';
 import ClienteForm from './ClienteForm';
 import ClienteDetalle from './ClienteDetalle';
 
@@ -30,6 +31,7 @@ const initialFormData = {
 const Clientes = () => {
     const navigate = useNavigate();
     const location = useLocation();
+    const { hasPermission } = usePermissions();
     const [clientes, setClientes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -182,9 +184,11 @@ const Clientes = () => {
                         Gestión de clientes del sistema
                     </p>
                 </div>
-                <Button onClick={handleCreate}>
-                    Nuevo Cliente
-                </Button>
+                {hasPermission('clientes', 'create') && (
+                    <Button onClick={handleCreate}>
+                        Nuevo Cliente
+                    </Button>
+                )}
             </div>
 
             {/* Alertas */}
@@ -267,24 +271,30 @@ const Clientes = () => {
                                         </Badge>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                                        <button
-                                            onClick={() => handleView(cliente.id)}
-                                            className="text-gray-600 hover:text-gray-900 mr-3 cursor-pointer"
-                                        >
-                                            Ver
-                                        </button>
-                                        <button
-                                            onClick={() => handleEdit(cliente.id)}
-                                            className="text-gray-600 hover:text-gray-900 mr-3 cursor-pointer"
-                                        >
-                                            Editar
-                                        </button>
-                                        <button
-                                            onClick={() => handleDelete(cliente.id)}
-                                            className="text-red-600 hover:text-red-900 cursor-pointer"
-                                        >
-                                            Eliminar
-                                        </button>
+                                        {hasPermission('clientes', 'view_detail') && (
+                                            <button
+                                                onClick={() => handleView(cliente.id)}
+                                                className="text-gray-600 hover:text-gray-900 mr-3 cursor-pointer"
+                                            >
+                                                Ver
+                                            </button>
+                                        )}
+                                        {hasPermission('clientes', 'update') && (
+                                            <button
+                                                onClick={() => handleEdit(cliente.id)}
+                                                className="text-gray-600 hover:text-gray-900 mr-3 cursor-pointer"
+                                            >
+                                                Editar
+                                            </button>
+                                        )}
+                                        {hasPermission('clientes', 'delete') && (
+                                            <button
+                                                onClick={() => handleDelete(cliente.id)}
+                                                className="text-red-600 hover:text-red-900 cursor-pointer"
+                                            >
+                                                Eliminar
+                                            </button>
+                                        )}
                                     </td>
                                 </tr>
                             ))}

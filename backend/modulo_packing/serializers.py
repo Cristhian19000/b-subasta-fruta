@@ -68,11 +68,29 @@ class PackingDetalleSerializer(serializers.ModelSerializer):
     """Serializer para el detalle diario."""
     
     dia_display = serializers.CharField(source='get_dia_display', read_only=True)
+    subasta_id = serializers.SerializerMethodField()
+    subasta_estado = serializers.SerializerMethodField()
+    # Nuevo campo para mostrar si hay subasta cancelada disponible para volver a subastar
+    tiene_subasta_cancelada = serializers.SerializerMethodField()
     
     class Meta:
         model = PackingDetalle
-        fields = ['id', 'dia', 'dia_display', 'fecha', 'py']
+        fields = ['id', 'dia', 'dia_display', 'fecha', 'py', 'subasta_id', 'subasta_estado', 'tiene_subasta_cancelada']
         read_only_fields = ['id']
+
+    def get_subasta_id(self, obj):
+        """Retorna el ID de la subasta activa (no cancelada) o None."""
+        subasta = obj.subasta_activa
+        return subasta.id if subasta else None
+
+    def get_subasta_estado(self, obj):
+        """Retorna el estado de la subasta activa (no cancelada) o de la cancelada si solo hay canceladas."""
+        subasta = obj.subasta  # property que retorna activa o última cancelada
+        return subasta.estado_calculado if subasta else None
+
+    def get_tiene_subasta_cancelada(self, obj):
+        """Indica si hay alguna subasta cancelada (útil para el frontend)."""
+        return obj.subastas.filter(estado='CANCELADA').exists()
 
 
 class PackingTipoSerializer(serializers.ModelSerializer):
@@ -248,16 +266,24 @@ class PackingSemanalCreateSerializer(serializers.Serializer):
                 'fecha_fin_semana': 'La fecha de fin debe ser posterior a la fecha de inicio'
             })
         
-        # Validar unicidad (empresa + fecha_inicio)
+        # Validar que no haya solapamiento de fechas con otro packing de la misma empresa
+        # Un solapamiento ocurre cuando:
+        # - El nuevo rango empieza antes de que termine el existente Y
+        # - El nuevo rango termina después de que empiece el existente
         instance = getattr(self, 'instance', None)
-        queryset = PackingSemanal.objects.filter(empresa=empresa, fecha_inicio_semana=fecha_inicio)
+        queryset = PackingSemanal.objects.filter(
+            empresa=empresa,
+            fecha_inicio_semana__lte=fecha_fin,  # El existente empieza antes de que termine el nuevo
+            fecha_fin_semana__gte=fecha_inicio   # El existente termina después de que empiece el nuevo
+        )
         
         if instance:
             queryset = queryset.exclude(pk=instance.pk)
         
-        if queryset.exists():
+        packing_conflicto = queryset.first()
+        if packing_conflicto:
             raise serializers.ValidationError({
-                'fecha_inicio_semana': f'Ya existe un packing para {empresa.nombre} en la semana del {fecha_inicio}'
+                'fecha_inicio_semana': f'Ya existe un packing para {empresa.nombre} que se solapa con estas fechas ({packing_conflicto.fecha_inicio_semana.strftime("%d/%m/%Y")} - {packing_conflicto.fecha_fin_semana.strftime("%d/%m/%Y")})'
             })
         
         return data
@@ -331,7 +357,8 @@ class PackingSemanalCreateSerializer(serializers.Serializer):
                 detalles_sin_subastas = []
                 
                 for detalle in tipo_existente.detalles.all():
-                    if hasattr(detalle, 'subasta'):
+                    # Un detalle tiene subastas si existe alguna subasta (activa o cancelada)
+                    if detalle.subastas.exists():
                         detalles_con_subastas.append(detalle)
                     else:
                         detalles_sin_subastas.append(detalle)
@@ -368,8 +395,10 @@ class PackingSemanalCreateSerializer(serializers.Serializer):
                     
                     # Si existe un detalle para este día y tiene subasta, actualizarlo
                     detalle_existente = detalles_existentes.get(dia)
-                    if detalle_existente and hasattr(detalle_existente, 'subasta'):
+                    if detalle_existente and detalle_existente.subastas.exists():
                         # Actualizar el detalle existente en lugar de crear uno nuevo
+                        # Re-asociar con el packing_tipo actual (el anterior pudo ser eliminado)
+                        detalle_existente.packing_tipo = packing_tipo
                         detalle_existente.fecha = detalle_data['fecha']
                         detalle_existente.py = detalle_data['py']
                         detalle_existente.save()

@@ -150,6 +150,12 @@ class PackingSemanal(models.Model):
     
     def actualizar_kg_total(self):
         """Actualiza el campo kg_total con el valor calculado."""
+        try:
+            # Refrescar desde BD para evitar race condition con objetos recién creados
+            self.refresh_from_db()
+        except PackingSemanal.DoesNotExist:
+            # El objeto fue eliminado, no hay nada que actualizar
+            return
         self.kg_total = self.calcular_kg_total()
         self.save(update_fields=['kg_total'])
     
@@ -282,6 +288,12 @@ class PackingTipo(models.Model):
     
     def actualizar_kg_total(self):
         """Actualiza el campo kg_total y también el del padre."""
+        try:
+            # Refrescar desde BD para evitar race condition con objetos recién creados
+            self.refresh_from_db()
+        except PackingTipo.DoesNotExist:
+            # El objeto fue eliminado, no hay nada que actualizar
+            return
         self.kg_total = self.calcular_kg_total()
         self.save(update_fields=['kg_total'])
         # También actualizar el padre
@@ -350,6 +362,28 @@ class PackingDetalle(models.Model):
         packing_tipo = self.packing_tipo
         super().delete(*args, **kwargs)
         packing_tipo.actualizar_kg_total()
+
+    @property
+    def subasta_activa(self):
+        """
+        Retorna la subasta vigente (no cancelada) para este detalle.
+        Prioridad: ACTIVA > PROGRAMADA > FINALIZADA
+        Si solo hay canceladas, retorna None.
+        """
+        subastas = self.subastas.exclude(estado='CANCELADA').order_by('-fecha_hora_inicio')
+        return subastas.first() if subastas.exists() else None
+
+    @property
+    def subasta(self):
+        """
+        Alias para compatibilidad con código existente.
+        Retorna la subasta activa o la más reciente cancelada si no hay activa.
+        """
+        activa = self.subasta_activa
+        if activa:
+            return activa
+        # Si no hay activa, retornar la más reciente (puede ser cancelada)
+        return self.subastas.order_by('-fecha_hora_inicio').first()
 
 
 # =============================================================================

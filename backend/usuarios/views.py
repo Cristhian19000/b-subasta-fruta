@@ -44,18 +44,28 @@ def login_view(request):
     username = serializer.validated_data['username']
     password = serializer.validated_data['password']
     
-    # Autenticar usuario
-    user = authenticate(username=username, password=password)
-    
-    if user is None:
+    # Verificar si el usuario existe primero
+    try:
+        user = User.objects.get(username=username)
+        
+        # Verificar si el usuario está activo
+        if not user.is_active:
+            return Response(
+                {'error': 'Esta cuenta ha sido desactivada. Contacte al administrador del sistema.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Verificar la contraseña
+        if not user.check_password(password):
+            return Response(
+                {'error': 'Usuario o contraseña incorrectos.'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+            
+    except User.DoesNotExist:
+        # Usuario no existe - usar el mismo mensaje que contraseña incorrecta por seguridad
         return Response(
-            {'error': 'Credenciales inválidas'},
-            status=status.HTTP_401_UNAUTHORIZED
-        )
-    
-    if not user.is_active:
-        return Response(
-            {'error': 'Usuario desactivado'},
+            {'error': 'Usuario o contraseña incorrectos.'},
             status=status.HTTP_401_UNAUTHORIZED
         )
     
@@ -114,7 +124,7 @@ class UsuarioViewSet(viewsets.ModelViewSet):
     """
     ViewSet para gestionar usuarios trabajadores.
     
-    Solo accesible por administradores.
+    Solo accesible por administradores con permisos de usuarios.
     
     Endpoints:
         - GET    /api/usuarios/          -> Listar usuarios
@@ -130,15 +140,60 @@ class UsuarioViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, RBACPermission]
     modulo_permiso = 'usuarios'
     
+    permisos_mapping = {
+        'list': 'view_usuarios',
+        'retrieve': 'view_usuarios',
+        'create': 'manage_usuarios',
+        'update': 'manage_usuarios',
+        'partial_update': 'manage_usuarios',
+        'destroy': 'manage_usuarios',
+        'activar': 'manage_usuarios',
+        'cambiar_password': 'manage_usuarios',
+    }
+    
     def get_serializer_class(self):
         """Usar serializer simplificado para listados."""
         if self.action == 'list':
             return UsuarioListSerializer
         return UsuarioSerializer
     
+    def update(self, request, *args, **kwargs):
+        """Actualizar usuario - prevenir auto-bloqueo."""
+        instance = self.get_object()
+        
+        # Prevenir que un usuario se edite a sí mismo si no es superusuario
+        if instance.id == request.user.id and not request.user.is_superuser:
+            return Response(
+                {'error': 'No puedes editar tu propio usuario. Por seguridad, solicita a otro administrador que realice los cambios.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        return super().update(request, *args, **kwargs)
+    
+    def partial_update(self, request, *args, **kwargs):
+        """Actualización parcial - prevenir auto-bloqueo."""
+        instance = self.get_object()
+        
+        # Prevenir que un usuario se edite a sí mismo si no es superusuario
+        if instance.id == request.user.id and not request.user.is_superuser:
+            return Response(
+                {'error': 'No puedes editar tu propio usuario. Por seguridad, solicita a otro administrador que realice los cambios.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        return super().partial_update(request, *args, **kwargs)
+    
     def destroy(self, request, *args, **kwargs):
         """Eliminar usuario (desactivar en lugar de eliminar)."""
         instance = self.get_object()
+        
+        # Prevenir que un usuario se desactive a sí mismo
+        if instance.id == request.user.id:
+            return Response(
+                {'error': 'No puedes desactivar tu propio usuario.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
         instance.is_active = False
         instance.save()
         return Response(
@@ -180,7 +235,7 @@ class PerfilPermisoViewSet(viewsets.ModelViewSet):
     """
     ViewSet para gestionar perfiles de permisos.
     
-    Solo accesible por administradores.
+    Solo accesible por administradores con permisos de perfiles.
     
     Endpoints:
         - GET    /api/perfiles-permiso/                   -> Listar perfiles
@@ -196,23 +251,19 @@ class PerfilPermisoViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, RBACPermission]
     modulo_permiso = 'usuarios'
     permisos_mapping = {
-        'list': 'view_list',
-        'retrieve': 'view_list',
-        'create': 'manage_profiles',
-        'update': 'manage_profiles',
-        'partial_update': 'manage_profiles',
-        'destroy': 'manage_profiles',
-        'estructura_permisos': 'manage_profiles',
+        'list': 'view_perfiles',
+        'retrieve': 'view_perfiles',
+        'create': 'manage_perfiles',
+        'update': 'manage_perfiles',
+        'partial_update': 'manage_perfiles',
+        'destroy': 'manage_perfiles',
+        'estructura_permisos': 'view_perfiles',  # Necesario para ver la estructura al asignar
     }
     
     def perform_create(self, serializer):
         """Guardar quién creó el perfil."""
-        # Obtener el perfil del usuario autenticado
-        creado_por = None
-        if hasattr(self.request.user, 'perfil'):
-            creado_por = self.request.user.perfil
-        
-        serializer.save(creado_por=creado_por)
+        # El campo creado_por espera un User, no un PerfilUsuario
+        serializer.save(creado_por=self.request.user)
     
     @action(detail=False, methods=['get'])
     def estructura_permisos(self, request):
@@ -228,8 +279,10 @@ class PerfilPermisoViewSet(viewsets.ModelViewSet):
                 'nombre': 'Dashboard',
                 'icono': 'LayoutDashboard',
                 'permisos': [
-                    {'codigo': 'view_dashboard', 'nombre': 'Ver Dashboard'},
-                    {'codigo': 'view_kpis', 'nombre': 'Ver KPIs y Estadísticas'}
+                    {'codigo': 'view_dashboard', 'nombre': 'Acceder al Dashboard'},
+                    {'codigo': 'view_summary', 'nombre': 'Ver Resúmenes'},
+                    {'codigo': 'view_tables', 'nombre': 'Ver Tablas'},
+                    {'codigo': 'view_reports', 'nombre': 'Ver Reportes'}
                 ]
             },
             'clientes': {
@@ -252,7 +305,7 @@ class PerfilPermisoViewSet(viewsets.ModelViewSet):
                     {'codigo': 'create', 'nombre': 'Crear Packing'},
                     {'codigo': 'update', 'nombre': 'Editar Packing'},
                     {'codigo': 'delete', 'nombre': 'Eliminar Packing'},
-                    {'codigo': 'create_auction', 'nombre': 'Crear Subasta desde Packing'}
+                    {'codigo': 'create_auction', 'nombre': 'Gestionar Subastas'}
                 ]
             },
             'subastas': {
@@ -260,18 +313,16 @@ class PerfilPermisoViewSet(viewsets.ModelViewSet):
                 'icono': 'Gavel',
                 'permisos': [
                     {'codigo': 'view_list', 'nombre': 'Ver Listado'},
-                    {'codigo': 'view_detail', 'nombre': 'Ver Detalle'},
+                    {'codigo': 'view_detail', 'nombre': 'Ver Detalle y Ofertas'},
                     {'codigo': 'create', 'nombre': 'Crear Subasta'},
                     {'codigo': 'update', 'nombre': 'Editar Subasta'},
-                    {'codigo': 'cancel', 'nombre': 'Cancelar Subasta'},
-                    {'codigo': 'view_bids', 'nombre': 'Ver Ofertas y Pujas'}
+                    {'codigo': 'cancel', 'nombre': 'Cancelar Subasta'}
                 ]
             },
             'reportes': {
                 'nombre': 'Reportes',
                 'icono': 'FileText',
                 'permisos': [
-                    {'codigo': 'view_reports', 'nombre': 'Ver Reportes'},
                     {'codigo': 'generate_clients', 'nombre': 'Generar Reporte de Clientes'},
                     {'codigo': 'generate_auctions', 'nombre': 'Generar Reporte de Subastas'},
                     {'codigo': 'generate_packings', 'nombre': 'Generar Reporte de Packings'}
@@ -291,11 +342,10 @@ class PerfilPermisoViewSet(viewsets.ModelViewSet):
                 'nombre': 'Usuarios y Perfiles',
                 'icono': 'UserCog',
                 'permisos': [
-                    {'codigo': 'view_list', 'nombre': 'Ver Listado de Usuarios y Perfiles'},
-                    {'codigo': 'create', 'nombre': 'Crear Usuario'},
-                    {'codigo': 'update', 'nombre': 'Editar Usuario'},
-                    {'codigo': 'delete', 'nombre': 'Eliminar Usuario'},
-                    {'codigo': 'manage_profiles', 'nombre': 'Gestionar Perfiles de Permisos'}
+                    {'codigo': 'view_usuarios', 'nombre': 'Ver Usuarios'},
+                    {'codigo': 'manage_usuarios', 'nombre': 'Gestionar Usuarios'},
+                    {'codigo': 'view_perfiles', 'nombre': 'Ver Perfiles de Permisos'},
+                    {'codigo': 'manage_perfiles', 'nombre': 'Gestionar Perfiles de Permisos'}
                 ]
             }
         }

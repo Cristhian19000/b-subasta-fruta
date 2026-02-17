@@ -8,7 +8,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Button, Badge, Table, Modal, Input, Select, Alert } from '../../components/common';
-import { getSubastas, getResumenSubastas, actualizarEstadosSubastas, cancelarSubasta } from '../../api/subastas';
+import { getSubastas, getResumenSubastas, cancelarSubasta, getSubasta } from '../../api/subastas';
+import { usePermissions } from '../../hooks/usePermissions';
+import { useSubastasContext } from '../../context/SubastasWSContext';
 import SubastaDetalle from './SubastaDetalle';
 import SubastaForm from './SubastaForm';
 import SubastaEditForm from './SubastaEditForm';
@@ -32,6 +34,10 @@ const ESTADO_LABELS = {
 
 const Subastas = () => {
     const location = useLocation();
+    const { hasPermission, isAdmin } = usePermissions();
+    
+    // Contexto de WebSocket para actualizaciones en tiempo real
+    const { refreshCounter } = useSubastasContext();
 
     // Estados
     const [subastas, setSubastas] = useState([]);
@@ -113,19 +119,12 @@ const Subastas = () => {
         cargarDatos();
     }, [cargarDatos]);
 
-    // Actualizar estados automáticamente cada 30 segundos
+    // Recargar datos automáticamente cuando hay eventos de WebSocket
     useEffect(() => {
-        const interval = setInterval(async () => {
-            try {
-                await actualizarEstadosSubastas();
-                cargarDatos();
-            } catch (err) {
-                console.error('Error actualizando estados:', err);
-            }
-        }, 30000);
-
-        return () => clearInterval(interval);
-    }, [cargarDatos]);
+        if (refreshCounter > 0) {
+            cargarDatos();
+        }
+    }, [refreshCounter, cargarDatos]);
 
     // Handlers
     const handleVerDetalle = (subasta) => {
@@ -153,7 +152,22 @@ const Subastas = () => {
     // Hacer disponible globalmente para que SubastaDetalle pueda dispararlo
     useEffect(() => {
         window.handleOpenEdit = handleEditar;
-        return () => { delete window.handleOpenEdit; };
+        window.openSubastaById = async (id) => {
+            try {
+                const res = await getSubasta(id);
+                if (res && res.data) {
+                    setSelectedSubasta(res.data);
+                    setShowDetalle(true);
+                }
+            } catch (e) {
+                console.error('Error abriendo subasta por id:', e);
+            }
+        };
+
+        return () => {
+            delete window.handleOpenEdit;
+            delete window.openSubastaById;
+        };
     }, []);
 
     const handleSubastaEditada = () => {
@@ -257,20 +271,30 @@ const Subastas = () => {
             render: (_, row) => {
                 const isActive = row.estado_actual === 'ACTIVA';
                 const isFinalizada = row.estado_actual === 'FINALIZADA';
+                const isCancelada = row.estado_actual === 'CANCELADA';
+                const fueReactivada = row.fue_reactivada === true;
 
                 return (
                     <div className="space-y-2">
-                        <Badge variant={ESTADO_COLORS[row.estado_actual] || 'default'}>
-                            <span className="flex items-center gap-1.5 px-0.5 py-px">
-                                {isActive && (
-                                    <span className="relative flex h-2 w-2">
-                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                                    </span>
-                                )}
-                                {ESTADO_LABELS[row.estado_actual] || row.estado_actual}
-                            </span>
-                        </Badge>
+                        <div className="flex flex-col gap-1">
+                            <Badge variant={ESTADO_COLORS[row.estado_actual] || 'default'}>
+                                <span className="flex items-center gap-1.5 px-0.5 py-px">
+                                    {isActive && (
+                                        <span className="relative flex h-2 w-2">
+                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                                        </span>
+                                    )}
+                                    {ESTADO_LABELS[row.estado_actual] || row.estado_actual}
+                                </span>
+                            </Badge>
+                            {/* Indicador de que fue reactivada */}
+                            {isCancelada && fueReactivada && (
+                                <Badge variant="info" className="text-[10px]">
+                                    Reemplazada
+                                </Badge>
+                            )}
+                        </div>
                         <div>
                             <div className="text-[10px] text-gray-400 uppercase font-medium">
                                 {isFinalizada ? 'Precio Final' : 'Precio Actual'}
@@ -321,16 +345,18 @@ const Subastas = () => {
             align: 'right',
             render: (_, row) => (
                 <div className="flex flex-col gap-1.5 min-w-[100px]">
-                    <Button
-                        size="sm"
-                        variant="primary"
-                        onClick={() => handleVerDetalle(row)}
-                        className="w-full text-xs"
-                    >
-                        Ver Detalle
-                    </Button>
+                    {(isAdmin() || hasPermission('subastas', 'view_detail')) && (
+                        <Button
+                            size="sm"
+                            variant="primary"
+                            onClick={() => handleVerDetalle(row)}
+                            className="w-full text-xs"
+                        >
+                            Ver Detalle
+                        </Button>
+                    )}
                     <div className="flex gap-1">
-                        {row.estado_actual === 'PROGRAMADA' && (
+                        {row.estado_actual === 'PROGRAMADA' && (isAdmin() || hasPermission('subastas', 'update')) && (
                             <Button
                                 size="sm"
                                 variant="warning"
@@ -341,7 +367,7 @@ const Subastas = () => {
                                 <Edit2 className="w-3.5 h-3.5" />
                             </Button>
                         )}
-                        {row.estado_actual !== 'FINALIZADA' && row.estado_actual !== 'CANCELADA' && (
+                        {row.estado_actual !== 'FINALIZADA' && row.estado_actual !== 'CANCELADA' && (isAdmin() || hasPermission('subastas', 'cancel')) && (
                             <Button
                                 size="sm"
                                 variant="danger"
@@ -537,6 +563,17 @@ const Subastas = () => {
                         subasta={selectedSubasta}
                         onClose={() => setShowDetalle(false)}
                         onUpdate={cargarDatos}
+                        openSubastaById={async (id) => {
+                            try {
+                                const res = await getSubasta(id);
+                                if (res && res.data) {
+                                    setSelectedSubasta(res.data);
+                                    setShowDetalle(true);
+                                }
+                            } catch (e) {
+                                console.error('Error abriendo subasta por id:', e);
+                            }
+                        }}
                     />
                 )}
             </Modal>

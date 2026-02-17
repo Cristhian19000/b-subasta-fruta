@@ -31,7 +31,9 @@ const Header = () => {
                             {user?.first_name || user?.username || 'Usuario'}
                         </p>
                         <p className="text-xs text-gray-500">
-                            {user?.es_administrador ? 'Administrador' : 'Trabajador'}
+                            {user?.is_superuser 
+                                ? 'Superusuario' 
+                                : user?.perfil_permiso?.nombre || 'Sin perfil'}
                         </p>
                     </div>
 
