@@ -204,14 +204,15 @@ class SubastaWebSocketService:
     def notificar_subasta_iniciada(cls, subasta):
         """
         Notifica que una subasta pasó a estado ACTIVA.
+        Notifica tanto al canal general como al canal específico de la subasta.
         """
-        cls._send_to_group(
-            cls.GRUPO_GENERAL,
-            "subasta_iniciada",
-            {
-                "subasta": cls._serialize_subasta(subasta)
-            }
-        )
+        datos = {
+            "subasta": cls._serialize_subasta(subasta)
+        }
+        # Canal general (Home, lista de subastas)
+        cls._send_to_group(cls.GRUPO_GENERAL, "subasta_iniciada", datos)
+        # Canal específico (detalle de la subasta)
+        cls._send_to_group(f"subasta_{subasta.id}", "subasta_iniciada", datos)
     
     @classmethod
     def notificar_subasta_finalizada(cls, subasta):

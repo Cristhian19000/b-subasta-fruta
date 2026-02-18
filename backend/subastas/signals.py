@@ -1,22 +1,36 @@
 """
-Signals para actualización automática de estados.
+Signals para el módulo de subastas.
 
-NOTA: Con la implementación de `estado_calculado` en PackingSemanal,
-ya no es necesario actualizar manualmente el campo `estado`.
-El estado se calcula dinámicamente basándose en las subastas asociadas.
-
-Este archivo se mantiene comentado para referencia histórica.
-Podría eliminarse en una futura limpieza de código.
+Al crear una nueva subasta PROGRAMADA, se lanza automáticamente
+un timer exacto (asyncio) que activará/finalizará la subasta
+en el momento preciso sin ningún delay.
 """
 
-# Se comentó toda la lógica de signals porque ahora usamos `estado_calc ulado`
-# que determina el estado dinámicamente sin necesidad de actualizar la BD.
+import asyncio
+import logging
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
-# Los signals anteriores actualizaban manualmente:
-# - PROYECTADO → EN_SUBASTA cuando se creaba una subasta
-# - EN_SUBASTA → F INALIZADO cuando todas las subastas terminaban
+logger = logging.getLogger(__name__)
 
-# Ahora el estado se calcula en tiempo real basándose en:
-# - Si hay subastas ACTIVAS ahora → EN_SUBASTA
-# - Si todas terminaron y no hay días pendientes → FINALIZADO  
-# - En otro caso → PROYECTADO
+
+@receiver(post_save, sender='subastas.Subasta')
+def programar_timer_nueva_subasta(sender, instance, created, **kwargs):
+    """
+    Al crear una subasta en estado PROGRAMADA, lanza su timer exacto.
+    El timer dormirá hasta fecha_hora_inicio y luego activará la subasta.
+    """
+    if not created or instance.estado != 'PROGRAMADA':
+        return
+
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            from subastas.scheduler import programar_timer_subasta
+            asyncio.ensure_future(programar_timer_subasta(instance.id))
+            logger.info(f"⏰ Timer programado para nueva subasta #{instance.id}")
+        else:
+            logger.debug(f"No hay event loop activo para programar timer de subasta #{instance.id}")
+    except RuntimeError:
+        # No hay event loop (ej: durante tests o comandos de gestión)
+        pass

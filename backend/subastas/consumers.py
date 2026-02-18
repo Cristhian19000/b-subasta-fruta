@@ -272,6 +272,13 @@ class SubastaDetalleConsumer(AsyncJsonWebsocketConsumer):
             "mensaje": event.get("mensaje", "La subasta ha sido cancelada")
         })
     
+    async def subasta_iniciada(self, event):
+        """La subasta pasó a ACTIVA (lanzada por el scheduler en tiempo real)."""
+        await self.send_json({
+            "tipo": "subasta_iniciada",
+            "subasta": event["subasta"]
+        })
+    
     @database_sync_to_async
     def _get_subasta(self):
         """Obtiene información de la subasta."""
