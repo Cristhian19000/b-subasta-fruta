@@ -15,6 +15,7 @@ from django.utils import timezone
 from usuarios.permissions import RBACPermission, requiere_permiso
 from .models import Cliente
 from .serializers import ClienteSerializer, ClienteListSerializer, ClienteLoginSerializer
+from core.emails import enviar_email_soporte, enviar_email_recuperacion
 
 
 class ClienteViewSet(viewsets.ModelViewSet):
@@ -64,6 +65,8 @@ class ClienteViewSet(viewsets.ModelViewSet):
         'estadisticas': 'view_list',
         'resetear_password': 'update',
         'subasta_stats': 'view_detail',
+        'enviar_soporte': 'view_list', # Permitir a cualquier usuario autenticado o anon (según AllowAny)
+        'recuperar_acceso': 'view_list',
     }
     
     # Backends de filtrado: búsqueda y ordenamiento
@@ -416,3 +419,48 @@ class ClienteViewSet(viewsets.ModelViewSet):
             'subastas_en_curso': subastas_en_curso,
             'ultima_participacion': ultima_participacion,
         })
+
+    @action(detail=False, methods=['post'], url_path='enviar-soporte', permission_classes=[AllowAny])
+    def enviar_soporte(self, request):
+        """
+        Endpoint para recibir datos del formulario de soporte de Android.
+        Soporta archivos adjuntos (imágenes, documentos) vía multipart/form-data.
+        """
+        datos = request.data.copy() # Hacer copia para poder modificar
+        
+        # Intentar capturar archivos de múltiples fuentes comunes
+        archivos = []
+        for key in request.FILES.keys():
+            # Captura 'archivos', 'archivos[]', 'imagenes', 'foto', etc.
+            archivos.extend(request.FILES.getlist(key))
+        
+        # Si el DNI/RUC está presente, intentar completar datos faltantes del perfil
+        ruc_dni = datos.get('ruc_dni')
+        if ruc_dni:
+            try:
+                cliente = Cliente.objects.get(ruc_dni=ruc_dni)
+                # Si el remitente o el email están vacíos, usar los del perfil
+                if not datos.get('nombre') or datos.get('nombre') == 'N/A':
+                    datos['nombre'] = cliente.nombre_razon_social
+                if not datos.get('email') or datos.get('email') == 'sin_correo@prize.com':
+                    datos['email'] = cliente.correo_electronico_1
+            except Cliente.DoesNotExist:
+                pass
+
+        if enviar_email_soporte(datos, archivos=archivos):
+            return Response({'message': 'Mensaje enviado a soporte correctamente.'}, status=status.HTTP_200_OK)
+        return Response({'error': 'No se pudo enviar el mensaje.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['post'], url_path='recuperar-acceso', permission_classes=[AllowAny])
+    def recuperar_acceso(self, request):
+        """
+        Endpoint para solicitar recuperación de acceso por RUC/DNI.
+        Ruta: POST /api/clientes/recuperar-acceso/
+        """
+        ruc_dni = request.data.get('ruc_dni')
+        if not ruc_dni:
+            return Response({'error': 'El RUC/DNI es obligatorio.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if enviar_email_recuperacion(ruc_dni):
+            return Response({'message': 'Solicitud enviada a soporte correctamente.'}, status=status.HTTP_200_OK)
+        return Response({'error': 'No se pudo procesar la solicitud.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

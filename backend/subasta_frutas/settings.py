@@ -217,3 +217,16 @@ CHANNEL_LAYERS = {
 #         },
 #     },
 # }
+# =============================================================================
+# CONFIGURACIÓN DE CORREO (SMTP)
+# =============================================================================
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'laura.gutierrez@tecsup.edu.pe'
+EMAIL_HOST_PASSWORD = 'xmaq xnuk lwgp mnbz'
+DEFAULT_FROM_EMAIL = 'laura.gutierrez@tecsup.edu.pe'
+
+# Correo del administrador para recibir notificaciones
+ADMIN_EMAIL = 'graceguti173@gmail.com'

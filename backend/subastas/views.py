@@ -30,6 +30,7 @@ from .serializers import (
     HistorialPujaSerializer,
 )
 from .websocket_service import SubastaWebSocketService
+from core.emails import enviar_email_ganador
 
 
 class SubastaViewSet(viewsets.ModelViewSet):
@@ -376,6 +377,12 @@ class SubastaViewSet(viewsets.ModelViewSet):
             subasta.save(update_fields=['estado'])
             # Notificar por WebSocket
             SubastaWebSocketService.notificar_subasta_finalizada(subasta)
+            
+            # Notificar por Email si hay un ganador
+            ganador = subasta.oferta_ganadora
+            if ganador:
+                enviar_email_ganador(subasta, ganador)
+                
             finalizadas += 1
         
         return Response({
