@@ -105,6 +105,7 @@ class SubastaListSerializer(serializers.ModelSerializer):
             'total_ofertas',
             'fecha_creacion',
             'fue_reactivada',
+            'extensiones_realizadas',
         ]
     
     def get_cliente_ganando(self, obj):
@@ -213,6 +214,7 @@ class SubastaDetailSerializer(serializers.ModelSerializer):
             'ahora_servidor',
             'fue_reactivada',
             'subasta_reemplazo',
+            'extensiones_realizadas',
         ]
     
     def get_imagenes(self, obj):
@@ -774,3 +776,17 @@ class HistorialPujaSerializer(serializers.ModelSerializer):
         """
         estado = obj.subasta.estado_calculado
         return estado.lower()
+
+
+class ConfiguracionSubastaSerializer(serializers.ModelSerializer):
+    """Serializer para leer y editar la configuración global de subastas."""
+
+    class Meta:
+        from .models import ConfiguracionSubasta
+        model = ConfiguracionSubasta
+        fields = [
+            'antisniping_habilitado',
+            'antisniping_umbral_segundos',
+            'antisniping_extension_segundos',
+            'antisniping_max_extensiones',
+        ]

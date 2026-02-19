@@ -56,7 +56,13 @@ class Subasta(models.Model):
         default='PROGRAMADA',
         verbose_name="Estado"
     )
-    
+
+    # Anti-sniping: cuántas veces se extendió el tiempo
+    extensiones_realizadas = models.PositiveIntegerField(
+        default=0,
+        verbose_name="Extensiones de tiempo realizadas"
+    )
+
     # Campos de auditoría
     fecha_creacion = models.DateTimeField(
         auto_now_add=True,
@@ -266,3 +272,50 @@ class Oferta(models.Model):
         if oferta_maxima and oferta_maxima.id == self.id:
             if not self.es_ganadora:
                 Oferta.objects.filter(id=self.id).update(es_ganadora=True)
+
+
+class ConfiguracionSubasta(models.Model):
+    """
+    Configuración global del sistema de subastas (singleton).
+    Solo debe existir un registro con pk=1.
+    Editable desde el panel web por el administrador.
+    """
+
+    # Anti-sniping
+    antisniping_habilitado = models.BooleanField(
+        default=True,
+        verbose_name="Extensión automática habilitada"
+    )
+    antisniping_umbral_segundos = models.PositiveIntegerField(
+        default=120,
+        verbose_name="Umbral de activación (segundos)",
+        help_text="Si quedan menos de X segundos y alguien puja, se extiende el tiempo."
+    )
+    antisniping_extension_segundos = models.PositiveIntegerField(
+        default=120,
+        verbose_name="Tiempo a agregar (segundos)",
+        help_text="Cuántos segundos se agregan al tiempo de fin cuando se activa."
+    )
+    antisniping_max_extensiones = models.PositiveIntegerField(
+        default=5,
+        verbose_name="Máximo de extensiones",
+        help_text="Número máximo de veces que se puede extender. 0 = sin límite."
+    )
+
+    class Meta:
+        verbose_name = "Configuración de Subastas"
+        verbose_name_plural = "Configuración de Subastas"
+
+    def __str__(self):
+        return "Configuración Global de Subastas"
+
+    def save(self, *args, **kwargs):
+        """Garantiza que solo exista un registro (singleton)."""
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get(cls):
+        """Obtiene (o crea con defaults) la configuración global."""
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj

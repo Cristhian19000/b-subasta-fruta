@@ -120,19 +120,25 @@ class SubastaWebSocketService:
             )
     
     @classmethod
-    def notificar_subasta_actualizada(cls, subasta, cambios=None):
+    def notificar_subasta_actualizada(cls, subasta, cambios=None, extra_data=None):
         """
         Notifica que una subasta fue actualizada.
         
         Args:
             subasta: Subasta actualizada
             cambios: Lista de campos que cambiaron
+            extra_data: Dict con campos extra a incluir en el objeto subasta
+                        (ej: {'tiempo_extendido': True} para anti-sniping)
         """
+        subasta_data = cls._serialize_subasta(subasta)
+        if extra_data:
+            subasta_data.update(extra_data)
+        
         cls._send_to_group(
             cls.GRUPO_GENERAL,
             "subasta_actualizada",
             {
-                "subasta": cls._serialize_subasta(subasta),
+                "subasta": subasta_data,
                 "cambios": cambios or []
             }
         )
@@ -142,7 +148,7 @@ class SubastaWebSocketService:
             f"subasta_{subasta.id}",
             "subasta_actualizada",
             {
-                "subasta": cls._serialize_subasta(subasta),
+                "subasta": subasta_data,
                 "cambios": cambios or []
             }
         )

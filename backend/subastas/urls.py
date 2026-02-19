@@ -16,7 +16,7 @@ Endpoints para App Móvil Android (requieren JWT de Cliente):
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
-from .views import SubastaViewSet, OfertaViewSet, SubastaMovilViewSet, PujaMovilViewSet
+from .views import SubastaViewSet, OfertaViewSet, SubastaMovilViewSet, PujaMovilViewSet, ConfiguracionSubastaView
 from .reportes_views import ReporteSubastasViewSet
 from .dashboard_views import DashboardViewSet
 
@@ -41,6 +41,9 @@ router_dashboard.register(r'', DashboardViewSet, basename='dashboard')
 urlpatterns = [
     # Endpoints del panel administrativo
     path('admin/', include(router_admin.urls)),
+
+    # Configuración global de subastas (anti-sniping, etc.)
+    path('admin/configuracion/', ConfiguracionSubastaView.as_view(), name='configuracion-subasta'),
     
     # Endpoints para el dashboard
     # Prefijo: /api/subastas/dashboard/

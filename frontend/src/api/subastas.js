@@ -119,10 +119,29 @@ export const getSubastasPorPacking = (packingSemanalId) => {
  * @param {number} packingDetalleId - ID del packing detalle
  */
 export const getSubastaPorDetalle = async (packingDetalleId) => {
-    const response = await api.get('/admin/subastas/', { 
-        params: { packing_detalle: packingDetalleId } 
+    const response = await api.get('/admin/subastas/', {
+        params: { packing_detalle: packingDetalleId }
     });
     return response.data.length > 0 ? response.data[0] : null;
+};
+
+// =============================================================================
+// CONFIGURACIÓN GLOBAL (Anti-sniping)
+// =============================================================================
+
+/**
+ * Obtener la configuración global de subastas (anti-sniping, etc.).
+ */
+export const getConfiguracionSubasta = () => {
+    return api.get('/admin/configuracion/');
+};
+
+/**
+ * Actualizar la configuración global de subastas.
+ * @param {Object} data - Campos a actualizar (parcial)
+ */
+export const updateConfiguracionSubasta = (data) => {
+    return api.patch('/admin/configuracion/', data);
 };
 
 export default {
@@ -139,4 +158,6 @@ export default {
     getSubastasActivas,
     getSubastasPorPacking,
     getSubastaPorDetalle,
+    getConfiguracionSubasta,
+    updateConfiguracionSubasta,
 };

@@ -5,10 +5,17 @@ En lugar de hacer polling cada N segundos, calcula exactamente cuántos
 segundos faltan para cada subasta y usa asyncio.sleep() con ese valor
 preciso. Esto garantiza transiciones de estado en tiempo real (~0s delay).
 
+Anti-sniping:
+- Cuando alguien puja, views.py llama a notificar_puja(subasta_id)
+- Esto activa un asyncio.Event que despierta el scheduler inmediatamente
+- El scheduler evalúa si aplica la extensión de tiempo según la config de BD
+- Si aplica: actualiza fecha_hora_fin en BD y notifica por WebSocket
+
 Flujo:
 1. Al arrancar el servidor → inicializar_timers() programa un timer por subasta
 2. Al crear una nueva subasta → signal llama a programar_timer_subasta()
 3. Al cumplirse el tiempo → actualiza BD + notifica por WebSocket
+4. Al recibir una puja → notificar_puja() despierta el scheduler para evaluar extensión
 """
 
 import asyncio
@@ -21,12 +28,41 @@ logger = logging.getLogger(__name__)
 # Conjunto de IDs de subastas que ya tienen timer activo (evita duplicados)
 _timers_activos: set = set()
 
+# Diccionario global: subasta_id → asyncio.Event para anti-sniping
+_eventos_puja: dict = {}
+
+
+def notificar_puja(subasta_id: int):
+    """
+    Llamado desde views.py cuando se registra una nueva puja.
+    Evalúa SIEMPRE si aplica la extensión de tiempo (anti-sniping).
+    
+    Si hay un timer activo, lo despierta para que recalcule el tiempo.
+    Si no hay timer, ejecuta la verificación directamente.
+    """
+    # Siempre ejecutar la verificación de anti-sniping (sync)
+    extendida = _verificar_y_extender(subasta_id)
+    if extendida:
+        logger.info(f"⏰ Anti-sniping aplicado para subasta #{subasta_id}")
+    
+    # Además, despertar el timer si existe (para que recalcule el tiempo de fin)
+    evento = _eventos_puja.get(subasta_id)
+    if evento:
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                loop.call_soon_threadsafe(evento.set)
+            else:
+                evento.set()
+        except RuntimeError:
+            evento.set()
+
 
 async def programar_timer_subasta(subasta_id: int):
     """
     Programa los timers exactos para una subasta:
     - Si está PROGRAMADA: duerme hasta fecha_hora_inicio → activa
-    - Si está ACTIVA:     duerme hasta fecha_hora_fin   → finaliza
+    - Si está ACTIVA:     espera pujas o fin → finaliza (con anti-sniping)
     """
     if subasta_id in _timers_activos:
         logger.debug(f"Subasta #{subasta_id} ya tiene timer activo, ignorando.")
@@ -60,20 +96,49 @@ async def programar_timer_subasta(subasta_id: int):
                 return  # Fue cancelada mientras esperábamos
             estado = 'ACTIVA'
 
-        # --- Fase 2: ACTIVA → FINALIZADA ---
+        # --- Fase 2: ACTIVA → FINALIZADA (con anti-sniping) ---
         if estado == 'ACTIVA':
-            ahora = timezone.now()
-            segundos_fin = (fin - ahora).total_seconds()
+            # Crear evento para recibir señales de nuevas pujas
+            evento = asyncio.Event()
+            _eventos_puja[subasta_id] = evento
 
-            if segundos_fin > 0:
-                logger.info(
-                    f"⏳ Subasta #{subasta_id}: finalizará en "
-                    f"{segundos_fin:.1f}s (a las {fin.strftime('%H:%M:%S')})"
-                )
-                await asyncio.sleep(segundos_fin)
+            try:
+                while True:
+                    # Leer el tiempo de fin actualizado desde BD
+                    datos_actuales = await sync_to_async(_get_subasta_data)(subasta_id)
+                    if not datos_actuales:
+                        return  # Cancelada
 
-            # Finalizar en BD y notificar
-            await sync_to_async(_finalizar_subasta)(subasta_id)
+                    _, _, fin_actual = datos_actuales
+                    ahora = timezone.now()
+                    segundos_fin = (fin_actual - ahora).total_seconds()
+
+                    if segundos_fin <= 0:
+                        # Tiempo agotado → finalizar
+                        await sync_to_async(_finalizar_subasta)(subasta_id)
+                        break
+
+                    logger.info(
+                        f"⏳ Subasta #{subasta_id}: finalizará en "
+                        f"{segundos_fin:.1f}s (a las {fin_actual.strftime('%H:%M:%S')})"
+                    )
+
+                    try:
+                        # Dormir hasta que se acabe el tiempo O llegue una puja
+                        await asyncio.wait_for(evento.wait(), timeout=segundos_fin)
+                        evento.clear()  # Resetear para la próxima puja
+
+                        # → Llegó una puja: notificar_puja() ya ejecutó _verificar_y_extender()
+                        # Solo necesitamos volver al inicio del loop para leer el nuevo fecha_hora_fin
+                        logger.debug(f"⏰ Subasta #{subasta_id}: puja recibida, recalculando tiempo...")
+
+                    except asyncio.TimeoutError:
+                        # → Se acabó el tiempo sin más pujas → finalizar
+                        await sync_to_async(_finalizar_subasta)(subasta_id)
+                        break
+
+            finally:
+                _eventos_puja.pop(subasta_id, None)
 
     except asyncio.CancelledError:
         logger.info(f"Timer de subasta #{subasta_id} cancelado.")
@@ -81,6 +146,7 @@ async def programar_timer_subasta(subasta_id: int):
         logger.error(f"❌ Error en timer de subasta #{subasta_id}: {e}", exc_info=True)
     finally:
         _timers_activos.discard(subasta_id)
+        _eventos_puja.pop(subasta_id, None)
 
 
 def _get_subasta_data(subasta_id: int):
@@ -120,6 +186,72 @@ def _activar_subasta(subasta_id: int) -> bool:
 
     except Subasta.DoesNotExist:
         logger.info(f"ℹ️ Subasta #{subasta_id} ya no está PROGRAMADA (cancelada o activada manualmente).")
+        return False
+
+
+def _verificar_y_extender(subasta_id: int) -> bool:
+    """
+    Verifica si aplica la extensión de tiempo (anti-sniping) y la ejecuta.
+
+    Condiciones para extender:
+    1. Anti-sniping habilitado en la configuración
+    2. Quedan menos segundos que el umbral configurado
+    3. No se ha alcanzado el máximo de extensiones (0 = ilimitado)
+
+    Retorna True si se extendió el tiempo, False si no aplica.
+    """
+    from .models import Subasta, ConfiguracionSubasta
+    from .websocket_service import SubastaWebSocketService
+    from datetime import timedelta
+
+    try:
+        config = ConfiguracionSubasta.get()
+
+        if not config.antisniping_habilitado:
+            return False
+
+        subasta = Subasta.objects.get(pk=subasta_id, estado='ACTIVA')
+        ahora = timezone.now()
+        segundos_restantes = (subasta.fecha_hora_fin - ahora).total_seconds()
+
+        # Verificar umbral
+        if segundos_restantes >= config.antisniping_umbral_segundos:
+            return False  # Quedan suficientes segundos, no extender
+
+        # Verificar límite de extensiones
+        if (config.antisniping_max_extensiones > 0 and
+                subasta.extensiones_realizadas >= config.antisniping_max_extensiones):
+            logger.info(
+                f"ℹ️ Subasta #{subasta_id}: límite de extensiones alcanzado "
+                f"({subasta.extensiones_realizadas}/{config.antisniping_max_extensiones})"
+            )
+            return False
+
+        # Aplicar extensión
+        nueva_fin = subasta.fecha_hora_fin + timedelta(seconds=config.antisniping_extension_segundos)
+        subasta.fecha_hora_fin = nueva_fin
+        subasta.extensiones_realizadas += 1
+        subasta.save(update_fields=['fecha_hora_fin', 'extensiones_realizadas', 'fecha_actualizacion'])
+
+        logger.info(
+            f"⏰ Subasta #{subasta_id}: extendida +{config.antisniping_extension_segundos}s "
+            f"→ nueva fin: {nueva_fin.strftime('%H:%M:%S')} "
+            f"(extensión {subasta.extensiones_realizadas})"
+        )
+
+        # Notificar a todos los clientes conectados
+        SubastaWebSocketService.notificar_subasta_actualizada(
+            subasta,
+            cambios=['fecha_hora_fin', 'tiempo_extendido'],
+            extra_data={'tiempo_extendido': True}
+        )
+
+        return True
+
+    except Subasta.DoesNotExist:
+        return False
+    except Exception as e:
+        logger.error(f"❌ Error en _verificar_y_extender para subasta #{subasta_id}: {e}", exc_info=True)
         return False
 
 

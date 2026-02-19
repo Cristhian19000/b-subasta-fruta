@@ -7,10 +7,27 @@ Consumers:
 """
 
 import json
+import asyncio
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.contrib.auth.models import AnonymousUser
 from asgiref.sync import sync_to_async
+
+# Flag global para inicializar timers solo una vez
+_scheduler_inicializado = False
+
+
+async def _inicializar_scheduler_si_necesario():
+    """Inicializa los timers del scheduler si aún no se han inicializado."""
+    global _scheduler_inicializado
+    if _scheduler_inicializado:
+        return
+    
+    _scheduler_inicializado = True
+    print("🚀 Inicializando scheduler de subastas (primera conexión WebSocket)...")
+    
+    from subastas.scheduler import inicializar_timers
+    asyncio.ensure_future(inicializar_timers())
 
 
 class SubastasConsumer(AsyncJsonWebsocketConsumer):
@@ -32,6 +49,10 @@ class SubastasConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
         """Conexión establecida."""
         print("DEBUG: SubastasConsumer.connect")
+        
+        # Inicializar scheduler en la primera conexión WebSocket
+        await _inicializar_scheduler_si_necesario()
+        
         user = self.scope.get("user", AnonymousUser())
         
         # Unirse al grupo general

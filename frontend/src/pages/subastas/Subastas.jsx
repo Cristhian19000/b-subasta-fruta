@@ -14,7 +14,8 @@ import { useSubastasContext } from '../../context/SubastasWSContext';
 import SubastaDetalle from './SubastaDetalle';
 import SubastaForm from './SubastaForm';
 import SubastaEditForm from './SubastaEditForm';
-import { Circle, Clock, Flag, RefreshCw, Edit2, ChevronLeft, ChevronRight } from 'lucide-react';
+import ConfiguracionSubasta from './ConfiguracionSubasta';
+import { Circle, Clock, Flag, RefreshCw, Edit2, ChevronLeft, ChevronRight, Settings } from 'lucide-react';
 
 // Colores para estados de subasta
 const ESTADO_COLORS = {
@@ -35,7 +36,7 @@ const ESTADO_LABELS = {
 const Subastas = () => {
     const location = useLocation();
     const { hasPermission, isAdmin } = usePermissions();
-    
+
     // Contexto de WebSocket para actualizaciones en tiempo real
     const { refreshCounter } = useSubastasContext();
 
@@ -58,6 +59,7 @@ const Subastas = () => {
     const [showDetalle, setShowDetalle] = useState(false);
     const [showForm, setShowForm] = useState(false);
     const [showEditForm, setShowEditForm] = useState(false);
+    const [showConfig, setShowConfig] = useState(false);
 
     // Cargar datos
     const cargarDatos = useCallback(async () => {
@@ -392,6 +394,19 @@ const Subastas = () => {
                     <h1 className="text-2xl font-bold text-gray-900">Subastas</h1>
                     <p className="text-gray-500">Gestión de subastas de producción diaria</p>
                 </div>
+                <div className="flex items-center gap-2">
+                    {isAdmin && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowConfig(true)}
+                            className="flex items-center gap-1.5"
+                        >
+                            <Settings className="w-4 h-4" />
+                            Configuración
+                        </Button>
+                    )}
+                </div>
             </div>
 
             {/* Resumen de estados */}
@@ -605,6 +620,16 @@ const Subastas = () => {
                         onCancel={() => setShowEditForm(false)}
                     />
                 )}
+            </Modal>
+
+            {/* Modal de Configuración de Subastas */}
+            <Modal
+                isOpen={showConfig}
+                onClose={() => setShowConfig(false)}
+                title=""
+                size="lg"
+            >
+                <ConfiguracionSubasta onClose={() => setShowConfig(false)} />
             </Modal>
         </div>
     );

@@ -28,6 +28,7 @@ from .serializers import (
     SubastaMovilDetailSerializer,
     PujaMovilSerializer,
     HistorialPujaSerializer,
+    ConfiguracionSubastaSerializer,
 )
 from .websocket_service import SubastaWebSocketService
 from core.emails import enviar_email_ganador
@@ -464,14 +465,18 @@ class OfertaViewSet(viewsets.ModelViewSet):
         
         # Crear la oferta
         oferta = serializer.save()
-        
+
         # Notificar por WebSocket
         SubastaWebSocketService.notificar_nueva_puja(
             subasta, 
             oferta,
             cliente_superado=cliente_superado if cliente_superado and cliente_superado != oferta.cliente else None
         )
-        
+
+        # Despertar el scheduler para evaluar anti-sniping
+        from .scheduler import notificar_puja
+        notificar_puja(subasta.id)
+
         output_serializer = OfertaSerializer(oferta)
         return Response(output_serializer.data, status=status.HTTP_201_CREATED)
 
@@ -635,13 +640,17 @@ class PujaMovilViewSet(viewsets.ViewSet):
                 cliente=cliente,
                 monto=monto
             )
-            
+
             # Notificar por WebSocket
             SubastaWebSocketService.notificar_nueva_puja(
                 subasta,
                 oferta,
                 cliente_superado=cliente_superado if cliente_superado and cliente_superado != cliente else None
             )
+
+            # Despertar el scheduler para evaluar anti-sniping
+            from .scheduler import notificar_puja
+            notificar_puja(subasta.id)
         
         return Response({
             'id': oferta.id,
@@ -698,3 +707,32 @@ class PujaMovilViewSet(viewsets.ViewSet):
         return Response(serializer.data)
 
 
+
+from rest_framework.views import APIView
+
+
+class ConfiguracionSubastaView(APIView):
+    """
+    GET  /api/admin/configuracion/  -> Leer configuración global de subastas
+    PATCH /api/admin/configuracion/ -> Editar configuración global de subastas
+    Solo accesible para administradores.
+    """
+    permission_classes = [IsAuthenticated, RBACPermission]
+    modulo_permiso = 'subastas'
+    permisos_mapping = {
+        'get': 'view_list',
+        'patch': 'update',
+    }
+
+    def get(self, request):
+        from .models import ConfiguracionSubasta
+        config = ConfiguracionSubasta.get()
+        return Response(ConfiguracionSubastaSerializer(config).data)
+
+    def patch(self, request):
+        from .models import ConfiguracionSubasta
+        config = ConfiguracionSubasta.get()
+        serializer = ConfiguracionSubastaSerializer(config, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
