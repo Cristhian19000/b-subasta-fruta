@@ -395,7 +395,7 @@ const Subastas = () => {
                     <p className="text-gray-500">Gestión de subastas de producción diaria</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    {isAdmin && (
+                    {(isAdmin() || hasPermission('subastas', 'manage_config')) && (
                         <Button
                             variant="outline"
                             size="sm"

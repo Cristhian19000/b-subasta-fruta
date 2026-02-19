@@ -316,7 +316,8 @@ class PerfilPermisoViewSet(viewsets.ModelViewSet):
                     {'codigo': 'view_detail', 'nombre': 'Ver Detalle y Ofertas'},
                     {'codigo': 'create', 'nombre': 'Crear Subasta'},
                     {'codigo': 'update', 'nombre': 'Editar Subasta'},
-                    {'codigo': 'cancel', 'nombre': 'Cancelar Subasta'}
+                    {'codigo': 'cancel', 'nombre': 'Cancelar Subasta'},
+                    {'codigo': 'manage_config', 'nombre': 'Configurar Anti-sniping'}
                 ]
             },
             'reportes': {

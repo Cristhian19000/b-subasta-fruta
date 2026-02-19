@@ -720,8 +720,8 @@ class ConfiguracionSubastaView(APIView):
     permission_classes = [IsAuthenticated, RBACPermission]
     modulo_permiso = 'subastas'
     permisos_mapping = {
-        'get': 'view_list',
-        'patch': 'update',
+        'get': 'manage_config',
+        'patch': 'manage_config',
     }
 
     def get(self, request):
