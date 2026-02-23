@@ -140,7 +140,7 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         # TÍTULO DEL REPORTE
         # =====================================================================
         
-        ws.merge_cells('A1:O1')
+        ws.merge_cells('A1:N1')
         cell_titulo = ws['A1']
         
         # Crear texto del título con rango de fechas
@@ -176,8 +176,7 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
             'Fecha Fin',
             'Duración',
             'Precio Base',
-            'Ganador',
-            'Monto Ganador',
+            'Ranking',
             'Total Ofertas'
         ]
         
@@ -219,38 +218,36 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
                 else:
                     estado_real = 'FINALIZADA'
 
-            # 2. Obtener información de la oferta ganadora (Optimizado en memoria)
+            # 2. Obtener el ranking de los 5 mejores clientes únicos (Optimizado en memoria)
             # Usamos las ofertas ya pre-cargadas en subasta.ofertas.all()
-            # en lugar de subasta.oferta_ganadora que hace una nueva consulta.
             ofertas = list(subasta.ofertas.all())
-            oferta_ganadora = None
-            if ofertas:
-                # Encontrar la de mayor monto (y luego fecha más reciente si hay empate, 
-                # aunque lógica de negocio dice que monto debe ser mayor)
-                oferta_ganadora = max(ofertas, key=lambda o: o.monto)
-                # Validar si realmente es ganadora (flag es_ganadora)
-                if not oferta_ganadora.es_ganadora:
-                     # Si por alguna razón la de mayor monto no está marcada (error de consistencia?)
-                     # buscamos la que tenga es_ganadora=True
-                     ganadoras = [o for o in ofertas if o.es_ganadora]
-                     if ganadoras:
-                         oferta_ganadora = ganadoras[0]
-                     else:
-                         oferta_ganadora = None
-
-            # 3. Determinar qué mostrar como ganador según el estado dinámico
-            if estado_real == 'FINALIZADA':
-                ganador_nombre = oferta_ganadora.cliente.nombre_razon_social if oferta_ganadora else 'Sin ofertas'
-                monto_ganador = float(oferta_ganadora.monto) if oferta_ganadora else 0.0
-            elif estado_real == 'ACTIVA':
-                ganador_nombre = f"LÍDER: {oferta_ganadora.cliente.nombre_razon_social}" if oferta_ganadora else 'Sin ofertas'
-                monto_ganador = float(oferta_ganadora.monto) if oferta_ganadora else 0.0
-            elif estado_real == 'CANCELADA':
-                ganador_nombre = 'CANCELADA'
-                monto_ganador = 0.0
-            else: # PROGRAMADA
-                ganador_nombre = 'Pendiente'
-                monto_ganador = 0.0
+            # Ordenar ofertas por monto de mayor a menor
+            ofertas_ordenadas = sorted(ofertas, key=lambda o: o.monto, reverse=True)
+            
+            # Obtener clientes únicos con su mejor oferta (top 5)
+            clientes_vistos = set()
+            top_5_clientes = []
+            for oferta in ofertas_ordenadas:
+                if oferta.cliente.id not in clientes_vistos:
+                    clientes_vistos.add(oferta.cliente.id)
+                    top_5_clientes.append(oferta)
+                    if len(top_5_clientes) >= 5:
+                        break
+            
+            # 3. Preparar texto del ranking según el estado dinámico
+            if estado_real == 'CANCELADA':
+                ranking_texto = 'CANCELADA'
+            elif estado_real == 'PROGRAMADA':
+                ranking_texto = 'Pendiente'
+            elif len(top_5_clientes) == 0:
+                ranking_texto = 'Sin ofertas'
+            else:
+                ranking_lines = []
+                for i, oferta in enumerate(top_5_clientes):
+                    nombre = oferta.cliente.nombre_razon_social
+                    monto = float(oferta.monto)
+                    ranking_lines.append(f"{i+1}. {nombre} - S/ {monto:,.2f}")
+                ranking_texto = ' | '.join(ranking_lines)
             
             # Contar ofertas totales
             total_ofertas = subasta.ofertas.count()
@@ -286,8 +283,7 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
                 fecha_fin_peru.strftime('%d/%m/%Y %H:%M'),      # Horario de Perú
                 duracion_str,  # Nueva columna de duración
                 float(subasta.precio_base),
-                ganador_nombre,
-                monto_ganador,
+                ranking_texto,  # Ranking consolidado
                 total_ofertas
             ]
             
@@ -296,11 +292,11 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
                 cell = ws.cell(row=row_num, column=col_num)
                 cell.value = value
                 cell.font = cell_font
-                cell.alignment = cell_alignment
                 cell.border = cell_border
+                cell.alignment = cell_alignment
                 
-                # Formato especial para números
-                if col_num in [7, 12, 14]:  # Kilos, Precio Base, Monto Ganador
+                # Formato especial para números: Kilos (7), Precio Base (12)
+                if col_num in [7, 12]:
                     cell.number_format = '#,##0.00'
             
             row_num += 1
@@ -322,9 +318,8 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
             'J': 18,  # Fecha Fin
             'K': 12,  # Duración
             'L': 14,  # Precio Base
-            'M': 30,  # Ganador
-            'N': 15,  # Monto Ganador
-            'O': 14,  # Total Ofertas
+            'M': 80,  # Ranking (ancho para mostrar en una línea)
+            'N': 14,  # Total Ofertas
         }
         
         for col_letter, width in column_widths.items():
@@ -335,7 +330,7 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         # =====================================================================
         
         if row_num > 3:  # Solo si hay datos
-            ws.auto_filter.ref = f"A2:O{row_num-1}"
+            ws.auto_filter.ref = f"A2:N{row_num-1}"
         
         # =====================================================================
         # GENERAR RESPUESTA HTTP CON EL ARCHIVO
