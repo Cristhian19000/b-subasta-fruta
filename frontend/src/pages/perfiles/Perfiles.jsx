@@ -176,6 +176,7 @@ const Perfiles = () => {
 
             {/* Tabla de Perfiles */}
             <div className="bg-white rounded-lg shadow overflow-hidden">
+                <div className="overflow-x-auto scrollbar-thin">
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                         <tr>
@@ -273,6 +274,7 @@ const Perfiles = () => {
                         ))}
                     </tbody>
                 </table>
+                </div>
 
                 {perfiles.length === 0 && (
                     <div className="text-center py-12 text-gray-500">

@@ -484,6 +484,7 @@ const SubastaDetalle = ({ subasta: initialSubasta, onClose, onUpdate, openSubast
 
         {historial.length > 0 ? (
           <div className="border border-gray-200 rounded-lg overflow-hidden">
+            <div className="overflow-x-auto scrollbar-thin">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -535,6 +536,7 @@ const SubastaDetalle = ({ subasta: initialSubasta, onClose, onUpdate, openSubast
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         ) : (
           <div className="text-center py-8 bg-gray-50 rounded-lg border border-gray-200">

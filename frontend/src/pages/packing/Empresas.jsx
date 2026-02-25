@@ -143,6 +143,7 @@ const Empresas = () => {
                 </div>
             ) : (
                 <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                    <div className="overflow-x-auto scrollbar-thin">
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                             <tr>
@@ -215,6 +216,7 @@ const Empresas = () => {
                             ))}
                         </tbody>
                     </table>
+                    </div>
                 </div>
             )}
 

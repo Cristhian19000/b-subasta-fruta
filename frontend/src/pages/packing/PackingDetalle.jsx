@@ -451,6 +451,7 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
 
                 {/* Tabla de detalles */}
                 {tipo.detalles && tipo.detalles.length > 0 ? (
+                  <div className="overflow-x-auto scrollbar-thin">
                   <table className="min-w-full divide-y divide-gray-200 table-fixed">
                     <thead className="bg-gray-50">
                       <tr>
@@ -588,6 +589,7 @@ const PackingDetalle = ({ packing, onClose, onEdit }) => {
                       })}
                     </tbody>
                   </table>
+                  </div>
                 ) : (
                   <div className="px-4 py-3 text-sm text-gray-500">
                     Sin detalles registrados

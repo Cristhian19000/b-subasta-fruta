@@ -124,25 +124,25 @@ const Home = () => {
 
 
     return (
-        <div className="p-4 space-y-4 bg-gray-50 min-h-screen">
+        <div className="p-2 sm:p-4 space-y-3 sm:space-y-4 bg-gray-50 min-h-screen">
             {/* Cabecera */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
-                    <h1 className="text-xl font-bold text-gray-900">Dashboard Ejecutivo</h1>
+                    <h1 className="text-lg sm:text-xl font-bold text-gray-900">Dashboard Ejecutivo</h1>
                 </div>
 
                 {/* Filtro de Tiempo REMOVIDO de aquí y movido a Top Clientes */}
             </div>
 
             {error && (
-                <div className="bg-red-50 border-l-4 border-red-400 p-3 rounded shadow-sm">
-                    <p className="text-sm text-red-700">{error}</p>
+                <div className="bg-red-50 border-l-4 border-red-400 p-2.5 sm:p-3 rounded shadow-sm">
+                    <p className="text-xs sm:text-sm text-red-700">{error}</p>
                 </div>
             )}
 
             {/* Resumen de Estados (Métricas Simples) */}
             {canViewSummary && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                     <StatusDonutWidget
                         title="Estados de Subastas"
                         data={resumen?.subastas}
@@ -169,7 +169,7 @@ const Home = () => {
 
             {/* Tablas - Grid Lado a Lado */}
             {canViewTables && (
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 pb-4">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 sm:gap-4 pb-4">
                     <RecentAuctionsTable data={subastasRecientes} loading={loading} />
                     <TopClientsTable
                         data={topClientes}
@@ -182,17 +182,17 @@ const Home = () => {
 
             {/* Widget de Reportes Rápidos */}
             {canViewReports && (
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 sm:gap-4">
                     <ReportsQuickWidget />
                 </div>
             )}
 
             {/* Mensaje si no tiene ningún permiso */}
             {!canViewSummary && !canViewTables && !canViewReports && (
-                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
-                    <p className="text-yellow-700">
+                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 sm:p-4 rounded">
+                    <p className="text-yellow-700 text-sm sm:text-base">
                         No tienes permisos para ver contenido del dashboard.
-                        Contacta al administrador para solicitar acceso.
+                        <span className="hidden sm:inline"> Contacta al administrador para solicitar acceso.</span>
                     </p>
                 </div>
             )}

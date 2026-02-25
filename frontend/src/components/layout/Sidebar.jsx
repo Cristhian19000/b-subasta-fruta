@@ -1,11 +1,12 @@
 /**
  * Componente Sidebar - Menú lateral de navegación.
+ * Incluye soporte responsivo con animaciones suaves.
  */
 
 import { NavLink } from 'react-router-dom';
 import { usePermissions } from '../../hooks/usePermissions';
 
-const Sidebar = () => {
+const Sidebar = ({ isOpen, onClose }) => {
     const { hasPermission, isAdmin } = usePermissions();
 
     // Construir array de items del menú
@@ -173,30 +174,49 @@ const Sidebar = () => {
     console.log('===================\n');
 
     return (
-        <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-white border-r border-gray-200">
-            {/* Logo */}
-            <div className="flex items-center h-16 px-6 border-b border-gray-200">
+        <aside 
+            className={`
+                fixed left-0 top-0 z-50 h-screen w-64 bg-white border-r border-gray-200
+                transform transition-transform duration-300 ease-in-out
+                ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+                lg:translate-x-0
+            `}
+        >
+            {/* Logo + Botón cerrar (móvil) */}
+            <div className="flex items-center justify-between h-16 px-4 sm:px-6 border-b border-gray-200">
                 <span className="text-xl font-semibold text-gray-900">
                     AgroSubasta
                 </span>
+                
+                {/* Botón cerrar - solo visible en móviles */}
+                <button
+                    onClick={onClose}
+                    className="lg:hidden p-2 -mr-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                    aria-label="Cerrar menú"
+                >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
             </div>
 
-            {/* Navigation */}
-            <nav className="flex flex-col gap-1 p-4">
+            {/* Navigation - scrollable */}
+            <nav className="flex flex-col gap-1 p-3 sm:p-4 overflow-y-auto h-[calc(100vh-4rem)]">
                 {visibleMenuItems.map((item) => (
                     <NavLink
                         key={item.path}
                         to={item.path}
                         end={item.path === '/dashboard'}
+                        onClick={onClose}
                         className={({ isActive }) =>
-                            `flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors cursor-pointer ${isActive
+                            `flex items-center gap-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg text-sm font-medium transition-colors cursor-pointer ${isActive
                                 ? 'bg-gray-900 text-white'
                                 : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                             }`
                         }
                     >
                         {item.icon}
-                        {item.name}
+                        <span className="truncate">{item.name}</span>
                     </NavLink>
                 ))}
             </nav>
