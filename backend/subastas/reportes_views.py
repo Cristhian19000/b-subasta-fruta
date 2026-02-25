@@ -140,7 +140,7 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         # TÍTULO DEL REPORTE
         # =====================================================================
         
-        ws.merge_cells('A1:N1')
+        ws.merge_cells('A1:W1')
         cell_titulo = ws['A1']
         
         # Crear texto del título con rango de fechas
@@ -176,7 +176,16 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
             'Fecha Fin',
             'Duración',
             'Precio Base',
-            'Ranking',
+            'Cliente Rank 1',
+            'Monto Rank 1',
+            'Cliente Rank 2',
+            'Monto Rank 2',
+            'Cliente Rank 3',
+            'Monto Rank 3',
+            'Cliente Rank 4',
+            'Monto Rank 4',
+            'Cliente Rank 5',
+            'Monto Rank 5',
             'Total Ofertas'
         ]
         
@@ -189,8 +198,14 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
             # Datos de Packing (Cols 2-7): Naranja
             if 2 <= col_num <= 7:
                 cell.fill = PatternFill(start_color='ED7D31', end_color='ED7D31', fill_type='solid')
-            # Datos de Subasta (Cols 8-14): Azul
-            elif 8 <= col_num <= 14:
+            # Datos de Subasta (Cols 8-12): Azul
+            elif 8 <= col_num <= 12:
+                cell.fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
+            # Ranking (Cols 13-22): Verde
+            elif 13 <= col_num <= 22:
+                cell.fill = PatternFill(start_color='70AD47', end_color='70AD47', fill_type='solid')
+            # Total Ofertas (Col 23): Azul
+            elif col_num == 23:
                 cell.fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
             else:
                 cell.fill = header_fill # Default (ID Subasta)
@@ -234,20 +249,35 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
                     if len(top_5_clientes) >= 5:
                         break
             
-            # 3. Preparar texto del ranking según el estado dinámico
+            # 3. Preparar datos del ranking en columnas separadas
+            ranking_clientes = []
+            ranking_montos = []
+            
             if estado_real == 'CANCELADA':
-                ranking_texto = 'CANCELADA'
+                # Rellenar con CANCELADA
+                for _ in range(5):
+                    ranking_clientes.append('CANCELADA')
+                    ranking_montos.append(None)
             elif estado_real == 'PROGRAMADA':
-                ranking_texto = 'Pendiente'
+                # Rellenar con Pendiente
+                for _ in range(5):
+                    ranking_clientes.append('Pendiente')
+                    ranking_montos.append(None)
             elif len(top_5_clientes) == 0:
-                ranking_texto = 'Sin ofertas'
+                # Rellenar con Sin ofertas
+                for _ in range(5):
+                    ranking_clientes.append('Sin ofertas')
+                    ranking_montos.append(None)
             else:
-                ranking_lines = []
-                for i, oferta in enumerate(top_5_clientes):
-                    nombre = oferta.cliente.nombre_razon_social
-                    monto = float(oferta.monto)
-                    ranking_lines.append(f"{i+1}. {nombre} - S/ {monto:,.2f}")
-                ranking_texto = ' | '.join(ranking_lines)
+                # Llenar con datos reales y completar hasta 5
+                for i in range(5):
+                    if i < len(top_5_clientes):
+                        oferta = top_5_clientes[i]
+                        ranking_clientes.append(oferta.cliente.nombre_razon_social)
+                        ranking_montos.append(float(oferta.monto))
+                    else:
+                        ranking_clientes.append('')
+                        ranking_montos.append(None)
             
             # Contar ofertas totales
             total_ofertas = subasta.ofertas.count()
@@ -283,7 +313,16 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
                 fecha_fin_peru.strftime('%d/%m/%Y %H:%M'),      # Horario de Perú
                 duracion_str,  # Nueva columna de duración
                 float(subasta.precio_base),
-                ranking_texto,  # Ranking consolidado
+                ranking_clientes[0],  # Cliente Rank 1
+                ranking_montos[0],    # Monto Rank 1
+                ranking_clientes[1],  # Cliente Rank 2
+                ranking_montos[1],    # Monto Rank 2
+                ranking_clientes[2],  # Cliente Rank 3
+                ranking_montos[2],    # Monto Rank 3
+                ranking_clientes[3],  # Cliente Rank 4
+                ranking_montos[3],    # Monto Rank 4
+                ranking_clientes[4],  # Cliente Rank 5
+                ranking_montos[4],    # Monto Rank 5
                 total_ofertas
             ]
             
@@ -295,8 +334,8 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
                 cell.border = cell_border
                 cell.alignment = cell_alignment
                 
-                # Formato especial para números: Kilos (7), Precio Base (12)
-                if col_num in [7, 12]:
+                # Formato especial para números: Kilos (7), Precio Base (12), Montos de Ranking (14, 16, 18, 20, 22)
+                if col_num in [7, 12, 14, 16, 18, 20, 22]:
                     cell.number_format = '#,##0.00'
             
             row_num += 1
@@ -318,8 +357,17 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
             'J': 18,  # Fecha Fin
             'K': 12,  # Duración
             'L': 14,  # Precio Base
-            'M': 80,  # Ranking (ancho para mostrar en una línea)
-            'N': 14,  # Total Ofertas
+            'M': 28,  # Cliente Rank 1
+            'N': 14,  # Monto Rank 1
+            'O': 28,  # Cliente Rank 2
+            'P': 14,  # Monto Rank 2
+            'Q': 28,  # Cliente Rank 3
+            'R': 14,  # Monto Rank 3
+            'S': 28,  # Cliente Rank 4
+            'T': 14,  # Monto Rank 4
+            'U': 28,  # Cliente Rank 5
+            'V': 14,  # Monto Rank 5
+            'W': 14,  # Total Ofertas
         }
         
         for col_letter, width in column_widths.items():
@@ -330,7 +378,7 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         # =====================================================================
         
         if row_num > 3:  # Solo si hay datos
-            ws.auto_filter.ref = f"A2:N{row_num-1}"
+            ws.auto_filter.ref = f"A2:W{row_num-1}"
         
         # =====================================================================
         # GENERAR RESPUESTA HTTP CON EL ARCHIVO
