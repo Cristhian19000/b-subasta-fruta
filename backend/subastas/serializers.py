@@ -30,10 +30,11 @@ class OfertaSerializer(serializers.ModelSerializer):
             'cliente_nombre',
             'cliente_ruc_dni',
             'monto',
+            'kilos_solicitados',
             'es_ganadora',
             'fecha_oferta',
         ]
-        read_only_fields = ['id', 'es_ganadora', 'fecha_oferta']
+        read_only_fields = ['id', 'es_ganadora', 'fecha_oferta', 'kilos_solicitados']
 
 
 class OfertaCreateSerializer(serializers.ModelSerializer):
@@ -681,7 +682,7 @@ class PujaMovilSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Oferta
-        fields = ['id', 'monto', 'fecha_hora']
+        fields = ['id', 'monto', 'kilos_solicitados', 'fecha_hora']
 
 
 class HistorialPujaSerializer(serializers.ModelSerializer):

@@ -140,7 +140,7 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         # TÍTULO DEL REPORTE
         # =====================================================================
         
-        ws.merge_cells('A1:W1')
+        ws.merge_cells('A1:AG1')
         cell_titulo = ws['A1']
         
         # Crear texto del título con rango de fechas
@@ -178,14 +178,24 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
             'Precio Base',
             'Cliente Rank 1',
             'Monto Rank 1',
+            'Kg Solicitados 1',
+            'Importe Total 1',
             'Cliente Rank 2',
             'Monto Rank 2',
+            'Kg Solicitados 2',
+            'Importe Total 2',
             'Cliente Rank 3',
             'Monto Rank 3',
+            'Kg Solicitados 3',
+            'Importe Total 3',
             'Cliente Rank 4',
             'Monto Rank 4',
+            'Kg Solicitados 4',
+            'Importe Total 4',
             'Cliente Rank 5',
             'Monto Rank 5',
+            'Kg Solicitados 5',
+            'Importe Total 5',
             'Total Ofertas'
         ]
         
@@ -201,11 +211,11 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
             # Datos de Subasta (Cols 8-12): Azul
             elif 8 <= col_num <= 12:
                 cell.fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
-            # Ranking (Cols 13-22): Verde
-            elif 13 <= col_num <= 22:
+            # Ranking (Cols 13-32): Verde
+            elif 13 <= col_num <= 32:
                 cell.fill = PatternFill(start_color='70AD47', end_color='70AD47', fill_type='solid')
-            # Total Ofertas (Col 23): Azul
-            elif col_num == 23:
+            # Total Ofertas (Col 33): Azul
+            elif col_num == 33:
                 cell.fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
             else:
                 cell.fill = header_fill # Default (ID Subasta)
@@ -252,22 +262,30 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
             # 3. Preparar datos del ranking en columnas separadas
             ranking_clientes = []
             ranking_montos = []
+            ranking_kilos = []
+            ranking_importes = []
             
             if estado_real == 'CANCELADA':
                 # Rellenar con CANCELADA
                 for _ in range(5):
                     ranking_clientes.append('CANCELADA')
                     ranking_montos.append(None)
+                    ranking_kilos.append(None)
+                    ranking_importes.append(None)
             elif estado_real == 'PROGRAMADA':
                 # Rellenar con Pendiente
                 for _ in range(5):
                     ranking_clientes.append('Pendiente')
                     ranking_montos.append(None)
+                    ranking_kilos.append(None)
+                    ranking_importes.append(None)
             elif len(top_5_clientes) == 0:
                 # Rellenar con Sin ofertas
                 for _ in range(5):
                     ranking_clientes.append('Sin ofertas')
                     ranking_montos.append(None)
+                    ranking_kilos.append(None)
+                    ranking_importes.append(None)
             else:
                 # Llenar con datos reales y completar hasta 5
                 for i in range(5):
@@ -275,9 +293,19 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
                         oferta = top_5_clientes[i]
                         ranking_clientes.append(oferta.cliente.nombre_razon_social)
                         ranking_montos.append(float(oferta.monto))
+                        # Kg solicitados (puede ser null)
+                        kg = float(oferta.kilos_solicitados) if oferta.kilos_solicitados else None
+                        ranking_kilos.append(kg)
+                        # Importe total = monto × kg solicitados
+                        if kg:
+                            ranking_importes.append(float(oferta.monto) * kg)
+                        else:
+                            ranking_importes.append(None)
                     else:
                         ranking_clientes.append('')
                         ranking_montos.append(None)
+                        ranking_kilos.append(None)
+                        ranking_importes.append(None)
             
             # Contar ofertas totales
             total_ofertas = subasta.ofertas.count()
@@ -315,14 +343,24 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
                 float(subasta.precio_base),
                 ranking_clientes[0],  # Cliente Rank 1
                 ranking_montos[0],    # Monto Rank 1
+                ranking_kilos[0],     # Kg Solicitados 1
+                ranking_importes[0],  # Importe Total 1
                 ranking_clientes[1],  # Cliente Rank 2
                 ranking_montos[1],    # Monto Rank 2
+                ranking_kilos[1],     # Kg Solicitados 2
+                ranking_importes[1],  # Importe Total 2
                 ranking_clientes[2],  # Cliente Rank 3
                 ranking_montos[2],    # Monto Rank 3
+                ranking_kilos[2],     # Kg Solicitados 3
+                ranking_importes[2],  # Importe Total 3
                 ranking_clientes[3],  # Cliente Rank 4
                 ranking_montos[3],    # Monto Rank 4
+                ranking_kilos[3],     # Kg Solicitados 4
+                ranking_importes[3],  # Importe Total 4
                 ranking_clientes[4],  # Cliente Rank 5
                 ranking_montos[4],    # Monto Rank 5
+                ranking_kilos[4],     # Kg Solicitados 5
+                ranking_importes[4],  # Importe Total 5
                 total_ofertas
             ]
             
@@ -334,8 +372,12 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
                 cell.border = cell_border
                 cell.alignment = cell_alignment
                 
-                # Formato especial para números: Kilos (7), Precio Base (12), Montos de Ranking (14, 16, 18, 20, 22)
-                if col_num in [7, 12, 14, 16, 18, 20, 22]:
+                # Formato especial para números:
+                # Kilos (7), Precio Base (12)
+                # Montos de Ranking (14, 18, 22, 26, 30)
+                # Kg Solicitados (15, 19, 23, 27, 31)
+                # Importes Totales (16, 20, 24, 28, 32)
+                if col_num in [7, 12, 14, 15, 16, 18, 19, 20, 22, 23, 24, 26, 27, 28, 30, 31, 32]:
                     cell.number_format = '#,##0.00'
             
             row_num += 1
@@ -359,15 +401,25 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
             'L': 14,  # Precio Base
             'M': 28,  # Cliente Rank 1
             'N': 14,  # Monto Rank 1
-            'O': 28,  # Cliente Rank 2
-            'P': 14,  # Monto Rank 2
-            'Q': 28,  # Cliente Rank 3
-            'R': 14,  # Monto Rank 3
-            'S': 28,  # Cliente Rank 4
-            'T': 14,  # Monto Rank 4
-            'U': 28,  # Cliente Rank 5
-            'V': 14,  # Monto Rank 5
-            'W': 14,  # Total Ofertas
+            'O': 16,  # Kg Solicitados 1
+            'P': 16,  # Importe Total 1
+            'Q': 28,  # Cliente Rank 2
+            'R': 14,  # Monto Rank 2
+            'S': 16,  # Kg Solicitados 2
+            'T': 16,  # Importe Total 2
+            'U': 28,  # Cliente Rank 3
+            'V': 14,  # Monto Rank 3
+            'W': 16,  # Kg Solicitados 3
+            'X': 16,  # Importe Total 3
+            'Y': 28,  # Cliente Rank 4
+            'Z': 14,  # Monto Rank 4
+            'AA': 16, # Kg Solicitados 4
+            'AB': 16, # Importe Total 4
+            'AC': 28, # Cliente Rank 5
+            'AD': 14, # Monto Rank 5
+            'AE': 16, # Kg Solicitados 5
+            'AF': 16, # Importe Total 5
+            'AG': 14, # Total Ofertas
         }
         
         for col_letter, width in column_widths.items():
@@ -378,7 +430,7 @@ class ReporteSubastasViewSet(viewsets.ViewSet):
         # =====================================================================
         
         if row_num > 3:  # Solo si hay datos
-            ws.auto_filter.ref = f"A2:W{row_num-1}"
+            ws.auto_filter.ref = f"A2:AG{row_num-1}"
         
         # =====================================================================
         # GENERAR RESPUESTA HTTP CON EL ARCHIVO

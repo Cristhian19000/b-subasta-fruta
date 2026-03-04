@@ -576,10 +576,11 @@ class PujaMovilViewSet(viewsets.ViewSet):
         POST /api/pujas/
         Enviar una puja/oferta.
         
-        Body: { "subasta_id": 1, "monto": 5.90 }
+        Body: { "subasta_id": 1, "monto": 5.90, "kilos_solicitados": 150.5 }
         """
         subasta_id = request.data.get('subasta_id')
         monto = request.data.get('monto')
+        kilos_solicitados = request.data.get('kilos_solicitados')  # Opcional
         
         # Validar campos requeridos
         if not subasta_id:
@@ -601,6 +602,21 @@ class PujaMovilViewSet(viewsets.ViewSet):
                 {'success': False, 'error': 'El monto debe ser un número válido'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+        
+        # Validar kilos_solicitados si se proporciona
+        if kilos_solicitados is not None:
+            try:
+                kilos_solicitados = float(kilos_solicitados)
+                if kilos_solicitados <= 0:
+                    return Response(
+                        {'success': False, 'error': 'Los kilos solicitados deben ser mayores a 0'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            except ValueError:
+                return Response(
+                    {'success': False, 'error': 'Los kilos solicitados deben ser un número válido'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
         
         # Obtener el cliente del token JWT
         cliente = request.user  # Es un objeto Cliente por ClienteJWTAuthentication
@@ -638,7 +654,8 @@ class PujaMovilViewSet(viewsets.ViewSet):
             oferta = Oferta.objects.create(
                 subasta=subasta,
                 cliente=cliente,
-                monto=monto
+                monto=monto,
+                kilos_solicitados=kilos_solicitados
             )
 
             # Notificar por WebSocket

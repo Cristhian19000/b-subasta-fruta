@@ -498,6 +498,9 @@ const SubastaDetalle = ({ subasta: initialSubasta, onClose, onUpdate, openSubast
                     Monto
                   </th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                    Kg Solicitados
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
                     Fecha/Hora
                   </th>
                 </tr>
@@ -528,6 +531,9 @@ const SubastaDetalle = ({ subasta: initialSubasta, onClose, onUpdate, openSubast
                       >
                         {formatCurrency(oferta.monto)}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm text-gray-600">
+                      {oferta.kilos_solicitados ? `${Number(oferta.kilos_solicitados).toLocaleString('es-PE')} kg` : '-'}
                     </td>
                     <td className="px-4 py-3 text-right text-xs text-gray-500">
                       {new Date(oferta.fecha_oferta).toLocaleString("es-PE")}

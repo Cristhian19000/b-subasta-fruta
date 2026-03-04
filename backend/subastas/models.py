@@ -224,6 +224,16 @@ class Oferta(models.Model):
         verbose_name="Monto ofertado"
     )
     
+    # Cantidad de kilos que el cliente desea comprar
+    kilos_solicitados = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name="Kilos solicitados",
+        help_text="Cantidad de kilos que el cliente desea comprar (puede ser mayor a los disponibles)"
+    )
+    
     # Indica si esta es la oferta ganadora
     es_ganadora = models.BooleanField(
         default=False,
